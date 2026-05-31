@@ -1,6 +1,7 @@
-import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { WOOF_IMAGES } from '../media';
+import { scheduleWalkNotification, NOTIFICATION_TYPES } from '../services/notifications';
 import { useWoof } from '../store/woofStore';
 import { colors } from '../theme';
 
@@ -8,17 +9,97 @@ const routeCells = [1, 2, 3, 4, 12, 20, 28, 29, 30, 38, 46, 47, 48];
 const pawCells = [3, 20, 38, 48];
 const totalCells = 48;
 
+// Photo-update notification fires once around 30% progress.
+const PHOTO_NOTIFY_THRESHOLD = 0.3;
+
+async function requestPermissions(dispatch) {
+ let locationStatus = 'granted';
+ let notificationsStatus = 'granted';
+
+ if (Platform.OS !== 'web') {
+   try {
+     const Location = await import('expo-location');
+     const { status: locStatus } = await Location.requestForegroundPermissionsAsync();
+     locationStatus = locStatus;
+   } catch {
+     // expo-location not available; treat as granted for demo
+   }
+
+   try {
+     const Notifications = await import('expo-notifications');
+     const { status: notifStatus } = await Notifications.requestPermissionsAsync();
+     notificationsStatus = notifStatus;
+   } catch {
+     // expo-notifications not available; treat as granted for demo
+   }
+ }
+
+ dispatch({
+   type: 'SET_PERMISSIONS',
+   payload: { location: locationStatus, notifications: notificationsStatus },
+ });
+
+ return { locationStatus, notificationsStatus };
+}
+
 export default function TrackingScreen() {
  const { state, dispatch } = useWoof();
  const walker = state.selectedWalker;
+ const walkerName = walker?.name || 'Jessica Park';
  const isComplete = state.trackingProgress >= 1.0;
  const completedCells = Math.round(routeCells.length * state.trackingProgress);
+
+ const notifiedStart = useRef(false);
+ const notifiedPhoto = useRef(false);
+ const notifiedEnd = useRef(false);
+
+ // Request permissions and fire walk-started notification on mount.
+ useEffect(() => {
+   async function init() {
+     if (state.permissions.location === null) {
+       await requestPermissions(dispatch);
+     }
+     if (!notifiedStart.current) {
+       notifiedStart.current = true;
+       scheduleWalkNotification(NOTIFICATION_TYPES.WALK_STARTED, walkerName);
+     }
+   }
+   init();
+ }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+ // Fire photo-update notification once near 30% progress.
+ useEffect(() => {
+   if (!notifiedPhoto.current && state.trackingProgress >= PHOTO_NOTIFY_THRESHOLD) {
+     notifiedPhoto.current = true;
+     scheduleWalkNotification(NOTIFICATION_TYPES.PHOTO_UPDATE, walkerName);
+   }
+ }, [state.trackingProgress, walkerName]);
+
+ // Fire walk-ended notification when walk completes.
+ useEffect(() => {
+   if (!notifiedEnd.current && isComplete) {
+     notifiedEnd.current = true;
+     scheduleWalkNotification(NOTIFICATION_TYPES.WALK_ENDED, walkerName);
+   }
+ }, [isComplete, walkerName]);
+
+ const deniedLocation = state.permissions.location === 'denied';
+ const deniedNotifications = state.permissions.notifications === 'denied';
 
  return (
  <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
  <Pressable onPress={() => dispatch({ type: 'SET_PHASE', payload: 'home' })}>
  <Text style={styles.back}>← Back</Text>
  </Pressable>
+
+ {(deniedLocation || deniedNotifications) && (
+   <View style={styles.permissionBanner}>
+     <Text style={styles.permissionBannerText}>
+       {deniedLocation && '📍 Location access denied — map tracking disabled. '}
+       {deniedNotifications && '🔔 Notification access denied — push alerts disabled.'}
+     </Text>
+   </View>
+ )}
 
  <View style={styles.headerCard}>
  <Text style={styles.title}>{isComplete ? '✅ Walk Complete!' : '🐾 Buddy\'s Live Walk'}</Text>
@@ -97,6 +178,15 @@ const styles = StyleSheet.create({
  back: {
  color: colors.primary,
  fontWeight: '800',
+ },
+ permissionBanner: {
+ backgroundColor: '#FEF3C7',
+ borderRadius: 12,
+ padding: 12,
+ },
+ permissionBannerText: {
+ color: '#92400E',
+ fontSize: 13,
  },
  headerCard: {
  backgroundColor: '#DCFCE7',

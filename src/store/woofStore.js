@@ -113,6 +113,7 @@ const initialState = {
  tipPercent: null, // 10 | 15 | 20 | 'custom' | null
  trackingActive: true,
  trackingProgress: 0.4,
+ permissions: { location: null, notifications: null },
  reviews: {},
  chatOpen: false,
  chatInput: '',
@@ -136,6 +137,14 @@ function buildRuffReply(message) {
 
 function reducer(state, action) {
  switch (action.type) {
+ case 'SET_PERMISSIONS':
+ return {
+ ...state,
+ permissions: {
+ ...state.permissions,
+ ...action.payload,
+ },
+ };
  case 'SET_PHASE':
  return {
  ...state,
