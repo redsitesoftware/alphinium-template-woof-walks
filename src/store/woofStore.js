@@ -54,7 +54,7 @@ const WALKER_REVIEWS = {
   { id: 'r1', author: 'Dan & Scout', rating: 5, text: 'Priya is a certified trainer and the difference in Scout after a month of training walks is remarkable.', date: '2 days ago' },
   { id: 'r2', author: 'Lena & Pepper', rating: 4.9, text: 'Pepper used to pull constantly. After four weeks with Priya on training walks she is a different dog.', date: '1 week ago' },
   { id: 'r3', author: 'Will & Boba', rating: 5, text: 'Priya combines exercise with real training — Boba now sits, stays, and heels. Outstanding value.', date: '2 weeks ago' },
-  { id: 'r4', author: 'Ellie & Storm', rating: 4.8, text: 'Incredibly knowledgeable and reliable. Storm's recall has improved enormously in just a few weeks.', date: '4 weeks ago' },
+  { id: 'r4', author: 'Ellie & Storm', rating: 4.8, text: 'Incredibly knowledgeable and reliable. Storm\'s recall has improved enormously in just a few weeks.', date: '4 weeks ago' },
  ],
  w8: [
   { id: 'r1', author: 'Marcus & Gus', rating: 4.8, text: 'Alex sends a photo update after every walk without fail. Gus looks so happy in every single one.', date: '1 day ago' },
@@ -74,9 +74,9 @@ const WALKER_REVIEWS = {
   { id: 'r3', author: 'Ray & Oscar', rating: 4.4, text: 'Ben is a solid, no-fuss walker. Oscar gets his afternoon exercise without breaking the bank.', date: '3 weeks ago' },
  ],
  w11: [
-  { id: 'r1', author: 'Zoe & Biscotti', rating: 4.9, text: 'Lucia's calm energy is incredible — Biscotti, who is usually anxious, settled immediately. Loyal client for life.', date: '1 day ago' },
+  { id: 'r1', author: 'Zoe & Biscotti', rating: 4.9, text: 'Lucia\'s calm energy is incredible — Biscotti, who is usually anxious, settled immediately. Loyal client for life.', date: '1 day ago' },
   { id: 'r2', author: 'Marco & Pippa', rating: 4.8, text: 'We have been with Lucia for over a year. Dependable, communicative, and Pippa absolutely adores her.', date: '1 week ago' },
-  { id: 'r3', author: 'Hannah & Remy', rating: 4.9, text: 'Inner west couldn't ask for a better walker. Remy comes home tired, happy, and smelling of fresh air.', date: '2 weeks ago' },
+  { id: 'r3', author: 'Hannah & Remy', rating: 4.9, text: 'Inner west couldn\'t ask for a better walker. Remy comes home tired, happy, and smelling of fresh air.', date: '2 weeks ago' },
   { id: 'r4', author: 'Luke & Mango', rating: 4.7, text: 'Great repeat-client vibe — Lucia remembers every detail about Mango. Feels personal, not transactional.', date: '4 weeks ago' },
  ],
  w12: [
