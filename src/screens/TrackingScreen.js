@@ -125,26 +125,6 @@ export default function TrackingScreen() {
  const deniedLocation = state.permissions.location === 'denied';
  const deniedNotifications = state.permissions.notifications === 'denied';
 
- return (
- <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
- <Pressable onPress={() => dispatch({ type: 'SET_PHASE', payload: 'home' })}>
- <Text style={styles.back}>← Back</Text>
- </Pressable>
-
- {(deniedLocation || deniedNotifications) && (
-   <View style={styles.permissionBanner}>
-     <Text style={styles.permissionBannerText}>
-       {deniedLocation && '📍 Location access denied — map tracking disabled. '}
-       {deniedNotifications && '🔔 Notification access denied — push alerts disabled.'}
-     </Text>
-   </View>
- )}
-
- <View style={styles.headerCard}>
- <Text style={styles.title}>{isComplete ? '✅ Walk Complete!' : '🐾 Buddy\'s Live Walk'}</Text>
- <Text style={styles.subtitle}>{walker?.emoji || ''} {walker?.name || 'Jessica Park'} · {isComplete ? 'Walk finished — leave a review!' : 'Walk Progress: 40% · 18 min remaining'}</Text>
- </View>
-
   useEffect(() => {
     // Immediate first fetch, then poll on interval.
     pollGPS();
@@ -171,6 +151,15 @@ export default function TrackingScreen() {
       <Pressable onPress={() => dispatch({ type: 'SET_PHASE', payload: 'home' })}>
         <Text style={styles.back}>← Back</Text>
       </Pressable>
+
+      {(deniedLocation || deniedNotifications) && (
+        <View style={styles.permissionBanner}>
+          <Text style={styles.permissionBannerText}>
+            {deniedLocation && '📍 Location access denied — map tracking disabled. '}
+            {deniedNotifications && '🔔 Notification access denied — push alerts disabled.'}
+          </Text>
+        </View>
+      )}
 
       <View style={styles.headerCard}>
         <Text style={styles.title}>{isComplete ? '✅ Walk Complete!' : '🐾 Buddy\'s Live Walk'}</Text>
