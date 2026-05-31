@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { filterWalkers, getCompareWalkers, useWoof } from '../store/woofStore';
+import React from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { filterWalkers, useWoof } from '../store/woofStore';
 import { getWalkerPhoto, WOOF_IMAGES } from '../media';
 import { colors } from '../theme';
 
@@ -30,7 +30,7 @@ function FilterRow({ label, value, options, onChange }) {
  );
 }
 
-function WalkerCard({ walker, onOpen, onBook, onCompare, isCompared, compareDisabled }) {
+function WalkerCard({ walker, onOpen, onBook }) {
  return (
  <Pressable style={styles.card} onPress={onOpen}>
  <View style={styles.cardTopRow}>
@@ -67,16 +67,6 @@ function WalkerCard({ walker, onOpen, onBook, onCompare, isCompared, compareDisa
  <Pressable style={styles.bookButton} onPress={onBook}>
  <Text style={styles.bookButtonText}>Book Now</Text>
  </Pressable>
-
- <Pressable
- style={[styles.compareToggle, isCompared ? styles.compareToggleActive : null, compareDisabled ? styles.compareToggleDisabled : null]}
- onPress={(e) => { e.stopPropagation?.(); onCompare(); }}
- disabled={compareDisabled && !isCompared}
- >
- <Text style={[styles.compareToggleText, isCompared ? styles.compareToggleTextActive : null]}>
- {isCompared ? '✓ Comparing' : compareDisabled ? 'Max 3' : '+ Compare'}
- </Text>
- </Pressable>
  </Pressable>
  );
 }
@@ -84,11 +74,8 @@ function WalkerCard({ walker, onOpen, onBook, onCompare, isCompared, compareDisa
 export default function HomeScreen() {
  const { state, dispatch } = useWoof();
  const walkers = filterWalkers(state);
- const compareWalkers = getCompareWalkers(state);
- const [modalVisible, setModalVisible] = useState(false);
 
  return (
- <View style={styles.screenWrapper}>
  <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
  <View style={styles.header}>
  <Text style={styles.logo}> WoofWalks</Text>
@@ -170,109 +157,19 @@ export default function HomeScreen() {
  <Text style={styles.resultsText}>{walkers.length} dog walkers near you</Text>
 
  <View style={styles.list}>
- {walkers.map((walker) => {
- const isCompared = state.compareList.includes(walker.id);
- const compareDisabled = state.compareList.length >= 3 && !isCompared;
- return (
+ {walkers.map((walker) => (
  <WalkerCard
  key={walker.id}
  walker={walker}
- isCompared={isCompared}
- compareDisabled={compareDisabled}
  onOpen={() => dispatch({ type: 'SELECT_WALKER', payload: walker, phase: 'walker' })}
  onBook={() => {
  dispatch({ type: 'SELECT_WALKER', payload: walker });
  dispatch({ type: 'SET_PHASE', payload: 'booking' });
  }}
- onCompare={() => dispatch({ type: 'TOGGLE_COMPARE', payload: walker.id })}
  />
- );
- })}
+ ))}
  </View>
  </ScrollView>
-
- {compareWalkers.length >= 2 ? (
- <View style={styles.compareBar}>
- <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.compareChips}>
- {compareWalkers.map((walker) => (
- <View key={walker.id} style={styles.compareChip}>
- <Image source={{ uri: getWalkerPhoto(walker.id) }} style={styles.compareChipAvatar} />
- <Text style={styles.compareChipName} numberOfLines={1}>{walker.name.split(' ')[0]}</Text>
- </View>
- ))}
- </ScrollView>
- <Pressable style={styles.compareBarButton} onPress={() => setModalVisible(true)}>
- <Text style={styles.compareBarButtonText}>Compare</Text>
- </Pressable>
- </View>
- ) : null}
-
- <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
- <View style={styles.modalOverlay}>
- <View style={styles.modalContainer}>
- <View style={styles.modalHeader}>
- <Text style={styles.modalTitle}>Compare Walkers</Text>
- <Pressable onPress={() => { dispatch({ type: 'CLEAR_COMPARE' }); setModalVisible(false); }}>
- <Text style={styles.modalClearText}>Clear</Text>
- </Pressable>
- </View>
- <ScrollView horizontal showsHorizontalScrollIndicator={false}>
- <View>
- <View style={styles.modalColHeader}>
- <View style={styles.modalRowLabel} />
- {compareWalkers.map((walker) => (
- <View key={walker.id} style={styles.modalCol}>
- <Image source={{ uri: getWalkerPhoto(walker.id) }} style={styles.modalAvatar} />
- <Text style={styles.modalWalkerName}>{walker.name}</Text>
- </View>
- ))}
- </View>
- {[
- { label: 'Rating', getValue: (w) => `⭐ ${w.rating.toFixed(1)} (${w.reviewCount})` },
- { label: 'Price 60min', getValue: (w) => `$${w.pricePerWalk}` },
- { label: 'Price 30min', getValue: (w) => `$${w.pricePer30}` },
- { label: 'Services', getValue: (w) => w.services.join(', ') },
- { label: 'Next slot', getValue: (w) => w.nextSlot },
- { label: 'Max dogs', getValue: (w) => w.dogs },
- { label: 'Badge', getValue: (w) => w.badge || '—' },
- ].map(({ label, getValue }) => (
- <View key={label} style={styles.modalRow}>
- <View style={styles.modalRowLabel}>
- <Text style={styles.modalRowLabelText}>{label}</Text>
- </View>
- {compareWalkers.map((walker) => (
- <View key={walker.id} style={styles.modalCol}>
- <Text style={styles.modalCellText}>{getValue(walker)}</Text>
- </View>
- ))}
- </View>
- ))}
- <View style={styles.modalRow}>
- <View style={styles.modalRowLabel} />
- {compareWalkers.map((walker) => (
- <View key={walker.id} style={styles.modalCol}>
- <Pressable
- style={styles.modalBookButton}
- onPress={() => {
- setModalVisible(false);
- dispatch({ type: 'SELECT_WALKER', payload: walker });
- dispatch({ type: 'SET_PHASE', payload: 'booking' });
- }}
- >
- <Text style={styles.modalBookButtonText}>Book</Text>
- </Pressable>
- </View>
- ))}
- </View>
- </View>
- </ScrollView>
- <Pressable style={styles.modalCloseButton} onPress={() => setModalVisible(false)}>
- <Text style={styles.modalCloseText}>Close</Text>
- </Pressable>
- </View>
- </View>
- </Modal>
- </View>
  );
 }
 
@@ -568,179 +465,5 @@ const styles = StyleSheet.create({
  bookButtonText: {
  color: '#FFFFFF',
  fontWeight: '800',
- },
- compareToggle: {
- borderRadius: 999,
- paddingVertical: 9,
- paddingHorizontal: 16,
- borderWidth: 1.5,
- borderColor: colors.primary,
- alignItems: 'center',
- },
- compareToggleActive: {
- backgroundColor: colors.primary,
- },
- compareToggleDisabled: {
- borderColor: colors.textMuted,
- },
- compareToggleText: {
- color: colors.primary,
- fontWeight: '800',
- fontSize: 13,
- },
- compareToggleTextActive: {
- color: '#FFFFFF',
- },
- screenWrapper: {
- flex: 1,
- backgroundColor: colors.bg,
- },
- compareBar: {
- position: 'absolute',
- bottom: 0,
- left: 0,
- right: 0,
- backgroundColor: '#FFFFFF',
- borderTopWidth: 1,
- borderTopColor: colors.border,
- paddingHorizontal: 16,
- paddingVertical: 14,
- flexDirection: 'row',
- alignItems: 'center',
- gap: 12,
- shadowColor: colors.shadow,
- shadowOffset: { width: 0, height: -2 },
- shadowOpacity: 0.12,
- shadowRadius: 8,
- elevation: 8,
- },
- compareChips: {
- flexDirection: 'row',
- gap: 10,
- alignItems: 'center',
- },
- compareChip: {
- alignItems: 'center',
- gap: 4,
- },
- compareChipAvatar: {
- width: 38,
- height: 38,
- borderRadius: 999,
- borderWidth: 2,
- borderColor: colors.primary,
- },
- compareChipName: {
- fontSize: 11,
- fontWeight: '700',
- color: colors.text,
- },
- compareBarButton: {
- backgroundColor: colors.primary,
- paddingHorizontal: 20,
- paddingVertical: 12,
- borderRadius: 14,
- },
- compareBarButtonText: {
- color: '#FFFFFF',
- fontWeight: '800',
- fontSize: 15,
- },
- modalOverlay: {
- flex: 1,
- backgroundColor: 'rgba(0,0,0,0.45)',
- justifyContent: 'flex-end',
- },
- modalContainer: {
- backgroundColor: '#FFFFFF',
- borderTopLeftRadius: 28,
- borderTopRightRadius: 28,
- padding: 20,
- maxHeight: '85%',
- gap: 16,
- },
- modalHeader: {
- flexDirection: 'row',
- justifyContent: 'space-between',
- alignItems: 'center',
- },
- modalTitle: {
- fontSize: 20,
- fontWeight: '900',
- color: colors.text,
- },
- modalClearText: {
- color: '#EF4444',
- fontWeight: '800',
- fontSize: 15,
- },
- modalColHeader: {
- flexDirection: 'row',
- marginBottom: 8,
- },
- modalCol: {
- width: 130,
- alignItems: 'center',
- paddingHorizontal: 6,
- },
- modalAvatar: {
- width: 52,
- height: 52,
- borderRadius: 999,
- marginBottom: 6,
- },
- modalWalkerName: {
- fontSize: 13,
- fontWeight: '800',
- color: colors.text,
- textAlign: 'center',
- },
- modalRow: {
- flexDirection: 'row',
- alignItems: 'flex-start',
- paddingVertical: 10,
- borderTopWidth: 1,
- borderTopColor: colors.border,
- },
- modalRowLabel: {
- width: 90,
- justifyContent: 'center',
- paddingRight: 8,
- },
- modalRowLabelText: {
- fontSize: 12,
- fontWeight: '700',
- color: colors.textMuted,
- textTransform: 'uppercase',
- },
- modalCellText: {
- fontSize: 13,
- fontWeight: '600',
- color: colors.text,
- textAlign: 'center',
- },
- modalBookButton: {
- backgroundColor: colors.primary,
- borderRadius: 10,
- paddingVertical: 9,
- paddingHorizontal: 18,
- marginTop: 4,
- },
- modalBookButtonText: {
- color: '#FFFFFF',
- fontWeight: '800',
- fontSize: 13,
- },
- modalCloseButton: {
- backgroundColor: '#F3F4F6',
- borderRadius: 14,
- paddingVertical: 13,
- alignItems: 'center',
- marginTop: 4,
- },
- modalCloseText: {
- color: colors.text,
- fontWeight: '800',
- fontSize: 15,
  },
 });
