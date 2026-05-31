@@ -1,3 +1,4 @@
+/**
  * Alphinium shared API client
  *
  * Provides a thin REST client and per-domain helper functions for the three
