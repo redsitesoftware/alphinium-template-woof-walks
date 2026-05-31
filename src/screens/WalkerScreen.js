@@ -7,7 +7,7 @@ import { colors } from '../theme';
 export default function WalkerScreen() {
  const { state, dispatch } = useWoof();
  const walker = state.selectedWalker;
- const reviews = getWalkerReviews(walker);
+ const reviews = getWalkerReviews(walker, state.reviews);
 
  if (!walker) {
  return null;
@@ -59,12 +59,28 @@ export default function WalkerScreen() {
  </View>
 
  <View style={styles.section}>
- <Text style={styles.sectionTitle}>Recent reviews</Text>
+ <Text style={styles.sectionTitle}>Rating breakdown</Text>
+ {Object.entries(walker.ratingBreakdown).map(([category, score]) => (
+  <View key={category} style={styles.breakdownRow}>
+   <Text style={styles.breakdownLabel}>{category.charAt(0).toUpperCase() + category.slice(1)}</Text>
+   <View style={styles.breakdownBarTrack}>
+    <View style={[styles.breakdownBarFill, { width: `${(score / 5) * 100}%` }]} />
+   </View>
+   <Text style={styles.breakdownScore}>★ {score.toFixed(1)}</Text>
+  </View>
+ ))}
+ </View>
+
+ <View style={styles.section}>
+ <Text style={styles.sectionTitle}>Recent reviews ({walker.reviewCount})</Text>
  {reviews.map((review) => (
  <View key={review.id} style={styles.reviewCard}>
- <Text style={styles.reviewAuthor}>{review.author}</Text>
- <Text style={styles.reviewRating}> {review.rating}</Text>
- <Text style={styles.body}>{review.text}</Text>
+  <View style={styles.reviewHeader}>
+   <Text style={styles.reviewAuthor}>{review.author}</Text>
+   <Text style={styles.reviewDate}>{review.date}</Text>
+  </View>
+  <Text style={styles.reviewRating}>★ {review.rating}</Text>
+  <Text style={styles.body}>{review.text}</Text>
  </View>
  ))}
  </View>
@@ -184,13 +200,52 @@ const styles = StyleSheet.create({
  padding: 14,
  gap: 6,
  },
+ reviewHeader: {
+ flexDirection: 'row',
+ justifyContent: 'space-between',
+ alignItems: 'center',
+ },
  reviewAuthor: {
  color: colors.text,
  fontWeight: '800',
  },
+ reviewDate: {
+ color: colors.textMuted,
+ fontSize: 12,
+ },
  reviewRating: {
  color: colors.accent,
  fontWeight: '800',
+ },
+ breakdownRow: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ gap: 10,
+ },
+ breakdownLabel: {
+ color: colors.text,
+ fontWeight: '700',
+ fontSize: 13,
+ width: 110,
+ },
+ breakdownBarTrack: {
+ flex: 1,
+ height: 6,
+ backgroundColor: colors.border,
+ borderRadius: 999,
+ overflow: 'hidden',
+ },
+ breakdownBarFill: {
+ height: '100%',
+ backgroundColor: colors.primary,
+ borderRadius: 999,
+ },
+ breakdownScore: {
+ color: colors.accent,
+ fontWeight: '800',
+ fontSize: 13,
+ width: 36,
+ textAlign: 'right',
  },
  stickyBar: {
  position: 'absolute',

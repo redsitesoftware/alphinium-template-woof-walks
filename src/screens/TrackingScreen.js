@@ -1,7 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { WOOF_IMAGES } from '../media';
-import { scheduleWalkNotification, NOTIFICATION_TYPES } from '../services/notifications';
 import { useWoof } from '../store/woofStore';
 import { colors } from '../theme';
 
@@ -9,81 +8,11 @@ const routeCells = [1, 2, 3, 4, 12, 20, 28, 29, 30, 38, 46, 47, 48];
 const pawCells = [3, 20, 38, 48];
 const totalCells = 48;
 
-// Photo-update notification fires once around 30% progress.
-const PHOTO_NOTIFY_THRESHOLD = 0.3;
-
-async function requestPermissions(dispatch) {
-  let locationStatus = 'granted';
-  let notificationsStatus = 'granted';
-
-  if (Platform.OS !== 'web') {
-    try {
-      const Location = await import('expo-location');
-      const { status: locStatus } = await Location.requestForegroundPermissionsAsync();
-      locationStatus = locStatus;
-    } catch {
-      // expo-location not available; treat as granted for demo
-    }
-
-    try {
-      const Notifications = await import('expo-notifications');
-      const { status: notifStatus } = await Notifications.requestPermissionsAsync();
-      notificationsStatus = notifStatus;
-    } catch {
-      // expo-notifications not available; treat as granted for demo
-    }
-  }
-
-  dispatch({
-    type: 'SET_PERMISSIONS',
-    payload: { location: locationStatus, notifications: notificationsStatus },
-  });
-
-  return { locationStatus, notificationsStatus };
-}
-
 export default function TrackingScreen() {
  const { state, dispatch } = useWoof();
  const walker = state.selectedWalker;
- const walkerName = walker?.name || 'Jessica Park';
+ const isComplete = state.trackingProgress >= 1.0;
  const completedCells = Math.round(routeCells.length * state.trackingProgress);
-
- const notifiedStart = useRef(false);
- const notifiedPhoto = useRef(false);
- const notifiedEnd = useRef(false);
-
- // Request permissions and fire walk-started notification on mount.
- useEffect(() => {
-   async function init() {
-     if (state.permissions.location === null) {
-       await requestPermissions(dispatch);
-     }
-     if (!notifiedStart.current) {
-       notifiedStart.current = true;
-       scheduleWalkNotification(NOTIFICATION_TYPES.WALK_STARTED, walkerName);
-     }
-   }
-   init();
- }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
- // Fire photo-update notification once near 30% progress.
- useEffect(() => {
-   if (!notifiedPhoto.current && state.trackingProgress >= PHOTO_NOTIFY_THRESHOLD) {
-     notifiedPhoto.current = true;
-     scheduleWalkNotification(NOTIFICATION_TYPES.PHOTO_UPDATE, walkerName);
-   }
- }, [state.trackingProgress, walkerName]);
-
- // Fire walk-ended notification when progress reaches 100%.
- useEffect(() => {
-   if (!notifiedEnd.current && state.trackingProgress >= 1) {
-     notifiedEnd.current = true;
-     scheduleWalkNotification(NOTIFICATION_TYPES.WALK_ENDED, walkerName);
-   }
- }, [state.trackingProgress, walkerName]);
-
- const permissionsDenied =
-   state.permissions.location === 'denied' || state.permissions.notifications === 'denied';
 
  return (
  <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -91,18 +20,9 @@ export default function TrackingScreen() {
  <Text style={styles.back}>← Back</Text>
  </Pressable>
 
- {permissionsDenied && (
- <View style={styles.permissionBanner}>
- <Text style={styles.permissionTitle}>📍 Permissions needed</Text>
- <Text style={styles.permissionText}>
-   Enable Location and Notification access in your device settings so you can receive live GPS updates and walk alerts.
- </Text>
- </View>
- )}
-
  <View style={styles.headerCard}>
- <Text style={styles.title}>️ Buddy's Live Walk</Text>
- <Text style={styles.subtitle}>{walker?.emoji || ''} {walkerName} · Walk Progress: 40% · 18 min remaining</Text>
+ <Text style={styles.title}>{isComplete ? '✅ Walk Complete!' : '🐾 Buddy\'s Live Walk'}</Text>
+ <Text style={styles.subtitle}>{walker?.emoji || ''} {walker?.name || 'Jessica Park'} · {isComplete ? 'Walk finished — leave a review!' : 'Walk Progress: 40% · 18 min remaining'}</Text>
  </View>
 
  <View style={styles.mapCard}>
@@ -129,8 +49,18 @@ export default function TrackingScreen() {
  );
  })}
  </View>
- <Text style={styles.progressLabel}>Walk Progress: 40% · 18 min remaining</Text>
+ <Text style={styles.progressLabel}>{isComplete ? '✅ Walk 100% complete!' : 'Walk Progress: 40% · 18 min remaining'}</Text>
  </View>
+
+ {isComplete ? (
+ <Pressable style={styles.reviewButton} onPress={() => dispatch({ type: 'SET_PHASE', payload: 'review' })}>
+ <Text style={styles.reviewButtonText}>⭐ Leave a Review</Text>
+ </Pressable>
+ ) : (
+ <Pressable style={styles.completeButton} onPress={() => dispatch({ type: 'COMPLETE_WALK' })}>
+ <Text style={styles.completeButtonText}>Simulate Walk Complete</Text>
+ </Pressable>
+ )}
 
  <View style={styles.photoBanner}>
  <Image source={{ uri: WOOF_IMAGES.trackingPhoto }} style={styles.photoImage} />
@@ -167,23 +97,6 @@ const styles = StyleSheet.create({
  back: {
  color: colors.primary,
  fontWeight: '800',
- },
- permissionBanner: {
- backgroundColor: '#FEF9C3',
- borderRadius: 18,
- padding: 16,
- gap: 6,
- borderWidth: 1,
- borderColor: '#FDE047',
- },
- permissionTitle: {
- color: '#78350F',
- fontWeight: '900',
- fontSize: 15,
- },
- permissionText: {
- color: '#92400E',
- lineHeight: 20,
  },
  headerCard: {
  backgroundColor: '#DCFCE7',
@@ -293,5 +206,28 @@ const styles = StyleSheet.create({
  calloutTextSecondary: {
  color: colors.textMuted,
  lineHeight: 20,
+ },
+ reviewButton: {
+ backgroundColor: colors.accent,
+ borderRadius: 16,
+ paddingVertical: 16,
+ alignItems: 'center',
+ },
+ reviewButtonText: {
+ color: '#FFFFFF',
+ fontWeight: '900',
+ fontSize: 16,
+ },
+ completeButton: {
+ backgroundColor: colors.card,
+ borderRadius: 16,
+ paddingVertical: 14,
+ alignItems: 'center',
+ borderWidth: 1,
+ borderColor: colors.border,
+ },
+ completeButtonText: {
+ color: colors.textMuted,
+ fontWeight: '700',
  },
 });
