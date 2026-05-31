@@ -1,6 +1,7 @@
-import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { getWalkerPhoto, WOOF_IMAGES } from '../media';
+import { processPayment } from '../services/payments';
 import { useWoof } from '../store/woofStore';
 import { colors } from '../theme';
 
@@ -52,9 +53,24 @@ export default function BookingScreen() {
  const { state, dispatch } = useWoof();
  const walker = state.selectedWalker;
  const { bookingData, bookingStep } = state;
+ const [paying, setPaying] = useState(false);
 
  if (!walker) {
  return null;
+ }
+
+ const price = bookingData.serviceType === 'Drop-in' ? walker.pricePer30 : walker.pricePerWalk;
+
+ async function handlePay() {
+ setPaying(true);
+ try {
+ const result = await processPayment({ ...bookingData, walker, amount: price });
+ dispatch({ type: 'PROCESS_PAYMENT', payload: result });
+ } catch {
+ dispatch({ type: 'PROCESS_PAYMENT', payload: { status: 'failed', transactionId: null } });
+ } finally {
+ setPaying(false);
+ }
  }
 
  return (
@@ -126,22 +142,66 @@ export default function BookingScreen() {
  </View>
 
  <Pressable style={styles.primaryButton} onPress={() => dispatch({ type: 'NEXT_BOOKING_STEP' })}>
- <Text style={styles.primaryButtonText}>Pay & Book</Text>
+ <Text style={styles.primaryButtonText}>Continue to Payment</Text>
  </Pressable>
  </View>
  ) : null}
 
- {bookingStep === 2 ? (
+ {bookingStep === 2 && bookingData.paymentStatus === null ? (
  <View style={styles.section}>
- <Text style={styles.sectionTitle}> Walk booked!</Text>
+ <Text style={styles.sectionTitle}>💳 Payment</Text>
+ <View style={styles.summaryCard}>
+ <Text style={styles.summaryLabel}>Service</Text>
+ <Text style={styles.summaryValue}>{bookingData.serviceType}</Text>
+ <Text style={styles.summaryLabel}>Walker</Text>
+ <Text style={styles.summaryValue}>{walker.name}</Text>
+ <Text style={styles.summaryLabel}>Date &amp; time</Text>
+ <Text style={styles.summaryValue}>{bookingData.date} at {bookingData.time}</Text>
+ <View style={styles.divider} />
+ <Text style={styles.priceTotal}>Total: ${price}</Text>
+ </View>
+
+ <View style={styles.alphiniumCallout}>
+ <Text style={styles.alphiniumTitle}>alphinium-payments</Text>
+ <Text style={styles.alphiniumText}>Secure checkout powered by alphinium-payments — saved cards, tipping, and invoicing ready.</Text>
+ </View>
+
+ <Pressable style={[styles.primaryButton, paying && styles.primaryButtonDisabled]} onPress={handlePay} disabled={paying}>
+ {paying
+ ? <ActivityIndicator color="#FFFFFF" />
+ : <Text style={styles.primaryButtonText}>Pay ${price}</Text>
+ }
+ </Pressable>
+ </View>
+ ) : null}
+
+ {bookingStep === 2 && bookingData.paymentStatus === 'paid' ? (
+ <View style={styles.section}>
+ <Text style={styles.sectionTitle}>✅ Walk booked!</Text>
  <Text style={styles.confirmText}>{bookingData.dogName} is booked with {walker.name} for {bookingData.date} at {bookingData.time}.</Text>
  <View style={styles.successCard}>
- <Text style={styles.successLine}> Walker confirmed instantly</Text>
- <Text style={styles.successLine}> Payment ready via alphinium-payments</Text>
- <Text style={styles.successLine}> Walk updates ready via alphinium-push</Text>
+ <Text style={styles.successLine}>✓ Payment confirmed · ${price}</Text>
+ <Text style={styles.successLine}>✓ Transaction: {bookingData.transactionId}</Text>
+ <Text style={styles.successLine}>✓ Walk updates ready via alphinium-push</Text>
  </View>
  <Pressable style={styles.primaryButton} onPress={() => dispatch({ type: 'START_TRACKING' })}>
  <Text style={styles.primaryButtonText}>Open Live Walk Demo</Text>
+ </Pressable>
+ <Pressable style={styles.secondaryButton} onPress={() => dispatch({ type: 'SET_PHASE', payload: 'home' })}>
+ <Text style={styles.secondaryButtonText}>Back to home</Text>
+ </Pressable>
+ </View>
+ ) : null}
+
+ {bookingStep === 2 && bookingData.paymentStatus === 'failed' ? (
+ <View style={styles.section}>
+ <Text style={styles.sectionTitle}>❌ Payment failed</Text>
+ <Text style={styles.confirmText}>Something went wrong processing your payment. Please try again.</Text>
+ <Pressable style={styles.primaryButton} onPress={handlePay} disabled={paying}>
+ {paying
+ ? <ActivityIndicator color="#FFFFFF" />
+ : <Text style={styles.primaryButtonText}>Retry Payment</Text>
+ }
  </Pressable>
  <Pressable style={styles.secondaryButton} onPress={() => dispatch({ type: 'SET_PHASE', payload: 'home' })}>
  <Text style={styles.secondaryButtonText}>Back to home</Text>
@@ -278,7 +338,24 @@ const styles = StyleSheet.create({
  color: colors.text,
  fontWeight: '800',
  },
- summaryCard: {
+ primaryButtonDisabled: {
+ opacity: 0.6,
+ },
+ summaryLabel: {
+ color: colors.textMuted,
+ fontWeight: '700',
+ fontSize: 12,
+ marginTop: 6,
+ },
+ summaryValue: {
+ color: colors.text,
+ fontWeight: '800',
+ },
+ divider: {
+ height: 1,
+ backgroundColor: colors.border,
+ marginVertical: 4,
+ },
  backgroundColor: '#F8FAFC',
  borderRadius: 18,
  padding: 16,
