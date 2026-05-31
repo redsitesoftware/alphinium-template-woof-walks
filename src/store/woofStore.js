@@ -104,6 +104,13 @@ const initialState = {
  searchText: '',
  bookingData: { dogName: 'Buddy', breed: 'Cavoodle', size: 'Medium', serviceType: 'Group walk', date: 'Today', time: '7:00 AM', recurring: false, notes: 'Friendly with other dogs and loves park loops.' },
  bookingStep: 0,
+ // alphinium-payments state — no raw card data ever stored here (PCI compliance)
+ paymentStatus: 'idle', // 'idle' | 'processing' | 'success' | 'error' | 'refunded'
+ paymentError: null,
+ savedCards: [], // [{ id, last4, brand, expiry }] — masked only
+ selectedSavedCardId: null,
+ invoice: null, // { bookingReference, amountCents, tipCents, currency, walkerName, date, invoiceUrl, last4, brand }
+ tipPercent: null, // 10 | 15 | 20 | 'custom' | null
  trackingActive: true,
  trackingProgress: 0.4,
  reviews: {},
@@ -172,7 +179,22 @@ function reducer(state, action) {
  },
  };
  case 'NEXT_BOOKING_STEP':
- return { ...state, bookingStep: Math.min(state.bookingStep + 1, 2) };
+ // Steps: 0 details → 1 summary → 2 payment → 3 tipping → 4 invoice/receipt
+ return { ...state, bookingStep: Math.min(state.bookingStep + 1, 4) };
+ case 'SET_PAYMENT_STATUS':
+ return { ...state, paymentStatus: action.payload, paymentError: null };
+ case 'SET_PAYMENT_ERROR':
+ return { ...state, paymentStatus: 'error', paymentError: action.payload };
+ case 'SET_SAVED_CARDS':
+ return { ...state, savedCards: action.payload };
+ case 'SELECT_SAVED_CARD':
+ return { ...state, selectedSavedCardId: action.payload };
+ case 'SET_INVOICE':
+ return { ...state, invoice: action.payload, paymentStatus: 'success', bookingStep: 3 };
+ case 'SET_TIP_PERCENT':
+ return { ...state, tipPercent: action.payload };
+ case 'REFUND_BOOKING':
+ return { ...state, paymentStatus: 'refunded', invoice: { ...state.invoice, refundReference: action.payload.refundReference } };
  case 'COMPLETE_WALK':
  return { ...state, trackingProgress: 1.0, phase: 'review' };
  case 'SUBMIT_REVIEW': {
@@ -201,6 +223,7 @@ function reducer(state, action) {
  phase: 'walker',
  };
  }
+ case 'START_TRACKING':
  return { ...state, trackingActive: true, phase: 'tracking' };
  case 'TOGGLE_CHAT':
  return { ...state, chatOpen: !state.chatOpen };
