@@ -7,7 +7,7 @@ import { colors } from '../theme';
 export default function WalkerScreen() {
  const { state, dispatch } = useWoof();
  const walker = state.selectedWalker;
- const reviews = getWalkerReviews(walker);
+ const reviews = getWalkerReviews(walker, state.reviews);
 
  if (!walker) {
  return null;

@@ -33,6 +33,7 @@ const initialState = {
  bookingStep: 0,
  trackingActive: true,
  trackingProgress: 0.4,
+ reviews: {},
  chatOpen: false,
  chatInput: '',
  chatMessages: [
@@ -88,7 +89,34 @@ function reducer(state, action) {
  };
  case 'NEXT_BOOKING_STEP':
  return { ...state, bookingStep: Math.min(state.bookingStep + 1, 2) };
- case 'START_TRACKING':
+ case 'COMPLETE_WALK':
+ return { ...state, trackingProgress: 1.0, phase: 'review' };
+ case 'SUBMIT_REVIEW': {
+ const { walkerId, rating, text, author } = action.payload;
+ const existing = state.reviews[walkerId] || [];
+ const newReview = { id: `r-${Date.now()}`, author: author || 'You', rating, text };
+ const updatedReviews = { ...state.reviews, [walkerId]: [newReview, ...existing] };
+
+ const updatedWalkers = state.walkers.map((w) => {
+ if (w.id !== walkerId) return w;
+ const totalRating = w.rating * w.reviewCount + rating;
+ const newCount = w.reviewCount + 1;
+ return { ...w, rating: Math.round((totalRating / newCount) * 10) / 10, reviewCount: newCount };
+ });
+
+ const updatedSelectedWalker =
+ state.selectedWalker?.id === walkerId
+ ? updatedWalkers.find((w) => w.id === walkerId)
+ : state.selectedWalker;
+
+ return {
+ ...state,
+ reviews: updatedReviews,
+ walkers: updatedWalkers,
+ selectedWalker: updatedSelectedWalker,
+ phase: 'walker',
+ };
+ }
  return { ...state, trackingActive: true, phase: 'tracking' };
  case 'TOGGLE_CHAT':
  return { ...state, chatOpen: !state.chatOpen };
@@ -153,8 +181,10 @@ export function filterWalkers(state) {
  return sorted;
 }
 
-export function getWalkerReviews(walker) {
+export function getWalkerReviews(walker, storeReviews) {
  if (!walker) return [];
+ const submitted = storeReviews?.[walker.id];
+ if (submitted && submitted.length > 0) return submitted;
  return [
  { id: 'r1', author: 'Mia & Poppy', rating: 5, text: `${walker.name.split(' ')[0]} is reliable, calm, and always sends the best photo updates.` },
  { id: 'r2', author: 'Sam with Archie', rating: 5, text: `Booking was easy and Archie came home happy after every ${walker.services[0].toLowerCase()}.` },

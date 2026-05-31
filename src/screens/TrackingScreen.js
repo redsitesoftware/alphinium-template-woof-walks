@@ -11,6 +11,7 @@ const totalCells = 48;
 export default function TrackingScreen() {
  const { state, dispatch } = useWoof();
  const walker = state.selectedWalker;
+ const isComplete = state.trackingProgress >= 1.0;
  const completedCells = Math.round(routeCells.length * state.trackingProgress);
 
  return (
@@ -20,8 +21,8 @@ export default function TrackingScreen() {
  </Pressable>
 
  <View style={styles.headerCard}>
- <Text style={styles.title}>️ Buddy's Live Walk</Text>
- <Text style={styles.subtitle}>{walker?.emoji || ''} {walker?.name || 'Jessica Park'} · Walk Progress: 40% · 18 min remaining</Text>
+ <Text style={styles.title}>{isComplete ? '✅ Walk Complete!' : '🐾 Buddy\'s Live Walk'}</Text>
+ <Text style={styles.subtitle}>{walker?.emoji || ''} {walker?.name || 'Jessica Park'} · {isComplete ? 'Walk finished — leave a review!' : 'Walk Progress: 40% · 18 min remaining'}</Text>
  </View>
 
  <View style={styles.mapCard}>
@@ -48,8 +49,18 @@ export default function TrackingScreen() {
  );
  })}
  </View>
- <Text style={styles.progressLabel}>Walk Progress: 40% · 18 min remaining</Text>
+ <Text style={styles.progressLabel}>{isComplete ? '✅ Walk 100% complete!' : 'Walk Progress: 40% · 18 min remaining'}</Text>
  </View>
+
+ {isComplete ? (
+ <Pressable style={styles.reviewButton} onPress={() => dispatch({ type: 'SET_PHASE', payload: 'review' })}>
+ <Text style={styles.reviewButtonText}>⭐ Leave a Review</Text>
+ </Pressable>
+ ) : (
+ <Pressable style={styles.completeButton} onPress={() => dispatch({ type: 'COMPLETE_WALK' })}>
+ <Text style={styles.completeButtonText}>Simulate Walk Complete</Text>
+ </Pressable>
+ )}
 
  <View style={styles.photoBanner}>
  <Image source={{ uri: WOOF_IMAGES.trackingPhoto }} style={styles.photoImage} />
@@ -195,5 +206,28 @@ const styles = StyleSheet.create({
  calloutTextSecondary: {
  color: colors.textMuted,
  lineHeight: 20,
+ },
+ reviewButton: {
+ backgroundColor: colors.accent,
+ borderRadius: 16,
+ paddingVertical: 16,
+ alignItems: 'center',
+ },
+ reviewButtonText: {
+ color: '#FFFFFF',
+ fontWeight: '900',
+ fontSize: 16,
+ },
+ completeButton: {
+ backgroundColor: colors.card,
+ borderRadius: 16,
+ paddingVertical: 14,
+ alignItems: 'center',
+ borderWidth: 1,
+ borderColor: colors.border,
+ },
+ completeButtonText: {
+ color: colors.textMuted,
+ fontWeight: '700',
  },
 });
