@@ -1,0 +1,16 @@
+export const colors = {
+ primary: '#16A34A',
+ primaryDark: '#14532D',
+ accent: '#F59E0B',
+ bg: '#F0FFF4',
+ card: '#FFFFFF',
+ text: '#14532D',
+ textMuted: '#6B7280',
+ badgeGreen: '#DCFCE7',
+ border: '#D1FAE5',
+ shadow: 'rgba(20, 83, 45, 0.12)',
+ success: '#22C55E',
+ info: '#0EA5E9',
+ purple: '#8B5CF6',
+ indigo: '#6366F1',
+};
