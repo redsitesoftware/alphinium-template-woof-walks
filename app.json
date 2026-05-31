@@ -19,10 +19,14 @@
       "lang": "en"
     },
     "android": {
-      "package": "com.redsitesoftware.woofWalks"
+      "package": "com.redsitesoftware.woofWalks",
+      "permissions": ["RECEIVE_BOOT_COMPLETED", "VIBRATE"]
     },
     "ios": {
-      "bundleIdentifier": "com.redsitesoftware.woofWalks"
+      "bundleIdentifier": "com.redsitesoftware.woofWalks",
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"]
+      }
     },
     "extra": {
       "eas": {

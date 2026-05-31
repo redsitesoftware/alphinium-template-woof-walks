@@ -33,6 +33,9 @@ const initialState = {
  bookingStep: 0,
  trackingActive: true,
  trackingProgress: 0.4,
+ notificationPermission: null,
+ deviceToken: null,
+ latestWalkPhoto: null,
  chatOpen: false,
  chatInput: '',
  chatMessages: [
@@ -90,6 +93,12 @@ function reducer(state, action) {
  return { ...state, bookingStep: Math.min(state.bookingStep + 1, 2) };
  case 'START_TRACKING':
  return { ...state, trackingActive: true, phase: 'tracking' };
+ case 'SET_NOTIFICATION_PERMISSION':
+ return { ...state, notificationPermission: action.payload };
+ case 'SET_DEVICE_TOKEN':
+ return { ...state, deviceToken: action.payload };
+ case 'WALK_PHOTO_RECEIVED':
+ return { ...state, latestWalkPhoto: action.payload || null };
  case 'TOGGLE_CHAT':
  return { ...state, chatOpen: !state.chatOpen };
  case 'SET_CHAT_INPUT':
