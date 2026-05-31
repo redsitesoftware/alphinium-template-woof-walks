@@ -1,3 +1,9 @@
+[![Forge with Alphinium](https://img.shields.io/badge/🔨_Forge_with_Alphinium-Build_Your_Version-6366f1?style=for-the-badge&logo=github)](https://alphinium.com/forge?template=woof-walks)
+
+> **This is an Alphinium template.** Click the badge above to fork this project and have an AI agent build your customised version automatically.
+
+---
+
 # WoofWalks
 
 WoofWalks is a fresh, outdoorsy React Native + Expo marketplace for finding, comparing, and booking trusted local dog walkers.
@@ -21,3 +27,5 @@ npm run web
 2. Review walker details and pricing
 3. Confirm a booking for your dog
 4. Jump into a simulated live walk tracking screen
+
+> Built with [alphinium](https://alphinium.com) — autonomous AI development agents
