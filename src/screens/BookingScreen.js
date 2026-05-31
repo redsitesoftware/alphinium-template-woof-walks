@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { getWalkerPhoto, WOOF_IMAGES } from '../media';
-import { checkout, getSavedCards, refund, submitTip, tokeniseCard } from '../services/payments';
+import { processPayment } from '../services/payments';
 import { useWoof } from '../store/woofStore';
 import { colors } from '../theme';
 
@@ -523,10 +523,10 @@ function InvoiceStep({ invoice, dispatch, walker, cancelBooking, cancellationRes
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function BookingScreen() {
-  const { state, dispatch, loadAvailability, createBookingRecord, payBooking, cancelBooking } = useWoof();
-  const walker = state.selectedWalker;
-  const [selectedDate, setSelectedDate] = React.useState(DATE_STRIP[0]);
-  const { bookingData, bookingStep, paymentStatus, paymentError, savedCards, selectedSavedCardId, invoice, tipPercent, dogs, availabilitySlots, availabilityLoading, bookingId, bookingCreating, bookingCreateError, cancellationResult, cancelLoading, cancelError } = state;
+ const { state, dispatch } = useWoof();
+ const walker = state.selectedWalker;
+ const { bookingData, bookingStep } = state;
+ const [paying, setPaying] = useState(false);
 
   useEffect(() => {
     // Pre-fetch saved cards when entering the booking flow
@@ -537,7 +537,25 @@ export default function BookingScreen() {
       });
   }, []);
 
-  if (!walker) return null;
+ const price = bookingData.serviceType === 'Drop-in' ? walker.pricePer30 : walker.pricePerWalk;
+
+ async function handlePay() {
+ setPaying(true);
+ try {
+ const result = await processPayment({ ...bookingData, walker, amount: price });
+ dispatch({ type: 'PROCESS_PAYMENT', payload: result });
+ } catch {
+ dispatch({ type: 'PROCESS_PAYMENT', payload: { status: 'failed', transactionId: null } });
+ } finally {
+ setPaying(false);
+ }
+ }
+
+ return (
+ <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+ <Pressable onPress={() => dispatch({ type: 'SET_PHASE', payload: 'walker' })}>
+ <Text style={styles.back}>← Back</Text>
+ </Pressable>
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -666,469 +684,262 @@ export default function BookingScreen() {
             />
           </View>
 
-          <Pressable style={styles.primaryButton} onPress={() => dispatch({ type: 'NEXT_BOOKING_STEP' })}>
-            <Text style={styles.primaryButtonText}>Confirm Booking Details</Text>
-          </Pressable>
-        </View>
-      )}
+ <Pressable style={styles.primaryButton} onPress={() => dispatch({ type: 'NEXT_BOOKING_STEP' })}>
+ <Text style={styles.primaryButtonText}>Continue to Payment</Text>
+ </Pressable>
+ </View>
+ ) : null}
 
-      {/* Step 1 — Booking summary */}
-      {bookingStep === 1 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Booking summary</Text>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLine}> {bookingData.dogName} · {bookingData.breed} · {bookingData.size}</Text>
-            <Text style={styles.summaryLine}> {bookingData.serviceType} with {walker.name}</Text>
-            <Text style={styles.summaryLine}> {bookingData.date} at {bookingData.time}</Text>
-            <Text style={styles.summaryLine}> {bookingData.recurring === false ? 'One-off walk' : `${bookingData.recurring} recurring`}</Text>
-            <Text style={styles.summaryLine}> {bookingData.notes}</Text>
-            <Text style={styles.priceTotal}>Total: ${bookingData.serviceType === 'Drop-in' ? walker.pricePer30 : walker.pricePerWalk}</Text>
-          </View>
+ {bookingStep === 2 && bookingData.paymentStatus === null ? (
+ <View style={styles.section}>
+ <Text style={styles.sectionTitle}>💳 Payment</Text>
+ <View style={styles.summaryCard}>
+ <Text style={styles.summaryLabel}>Service</Text>
+ <Text style={styles.summaryValue}>{bookingData.serviceType}</Text>
+ <Text style={styles.summaryLabel}>Walker</Text>
+ <Text style={styles.summaryValue}>{walker.name}</Text>
+ <Text style={styles.summaryLabel}>Date &amp; time</Text>
+ <Text style={styles.summaryValue}>{bookingData.date} at {bookingData.time}</Text>
+ <View style={styles.divider} />
+ <Text style={styles.priceTotal}>Total: ${price}</Text>
+ </View>
 
-          <Pressable style={styles.primaryButton} onPress={() => dispatch({ type: 'NEXT_BOOKING_STEP' })}>
-            <Text style={styles.primaryButtonText}>Continue to Payment</Text>
-          </Pressable>
-        </View>
-      )}
+ <View style={styles.alphiniumCallout}>
+ <Text style={styles.alphiniumTitle}>alphinium-payments</Text>
+ <Text style={styles.alphiniumText}>Secure checkout powered by alphinium-payments — saved cards, tipping, and invoicing ready.</Text>
+ </View>
 
-      {/* Step 2 — Payment */}
-      {bookingStep === 2 && (
-        <PaymentStep
-          walker={walker}
-          bookingData={bookingData}
-          dispatch={dispatch}
-          paymentStatus={paymentStatus}
-          paymentError={paymentError}
-          savedCards={savedCards}
-          selectedSavedCardId={selectedSavedCardId}
-          bookingId={bookingId}
-          bookingCreating={bookingCreating}
-          bookingCreateError={bookingCreateError}
-          createBookingRecord={createBookingRecord}
-          payBooking={payBooking}
-        />
-      )}
+ <Pressable style={[styles.primaryButton, paying && styles.primaryButtonDisabled]} onPress={handlePay} disabled={paying}>
+ {paying
+ ? <ActivityIndicator color="#FFFFFF" />
+ : <Text style={styles.primaryButtonText}>Pay ${price}</Text>
+ }
+ </Pressable>
+ </View>
+ ) : null}
 
-      {/* Step 3 — Tipping */}
-      {bookingStep === 3 && (
-        <TippingStep
-          walker={walker}
-          invoice={invoice}
-          tipPercent={tipPercent}
-          dispatch={dispatch}
-        />
-      )}
+ {bookingStep === 2 && bookingData.paymentStatus === 'paid' ? (
+ <View style={styles.section}>
+ <Text style={styles.sectionTitle}>✅ Walk booked!</Text>
+ <Text style={styles.confirmText}>{bookingData.dogName} is booked with {walker.name} for {bookingData.date} at {bookingData.time}.</Text>
+ <View style={styles.successCard}>
+ <Text style={styles.successLine}>✓ Payment confirmed · ${price}</Text>
+ <Text style={styles.successLine}>✓ Transaction: {bookingData.transactionId}</Text>
+ <Text style={styles.successLine}>✓ Walk updates ready via alphinium-push</Text>
+ </View>
+ <Pressable style={styles.primaryButton} onPress={() => dispatch({ type: 'START_TRACKING' })}>
+ <Text style={styles.primaryButtonText}>Open Live Walk Demo</Text>
+ </Pressable>
+ <Pressable style={styles.secondaryButton} onPress={() => dispatch({ type: 'SET_PHASE', payload: 'home' })}>
+ <Text style={styles.secondaryButtonText}>Back to home</Text>
+ </Pressable>
+ </View>
+ ) : null}
 
-      {/* Step 4 — Invoice / receipt */}
-      {bookingStep === 4 && (
-        <InvoiceStep
-          invoice={invoice}
-          dispatch={dispatch}
-          walker={walker}
-          cancelBooking={cancelBooking}
-          cancellationResult={cancellationResult}
-          cancelLoading={cancelLoading}
-          cancelError={cancelError}
-        />
-      )}
-    </ScrollView>
-  );
+ {bookingStep === 2 && bookingData.paymentStatus === 'failed' ? (
+ <View style={styles.section}>
+ <Text style={styles.sectionTitle}>❌ Payment failed</Text>
+ <Text style={styles.confirmText}>Something went wrong processing your payment. Please try again.</Text>
+ <Pressable style={styles.primaryButton} onPress={handlePay} disabled={paying}>
+ {paying
+ ? <ActivityIndicator color="#FFFFFF" />
+ : <Text style={styles.primaryButtonText}>Retry Payment</Text>
+ }
+ </Pressable>
+ <Pressable style={styles.secondaryButton} onPress={() => dispatch({ type: 'SET_PHASE', payload: 'home' })}>
+ <Text style={styles.secondaryButtonText}>Back to home</Text>
+ </Pressable>
+ </View>
+ ) : null}
+ </ScrollView>
+ );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  content: {
-    padding: 20,
-    paddingTop: 32,
-    paddingBottom: 120,
-    gap: 18,
-  },
-  back: {
-    color: colors.primary,
-    fontWeight: '800',
-  },
-  headerCard: {
-    backgroundColor: colors.card,
-    borderRadius: 26,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  headerImage: {
-    width: '100%',
-    height: 190,
-  },
-  headerBody: {
-    backgroundColor: '#DCFCE7',
-    padding: 20,
-    gap: 6,
-  },
-  walkerThumb: {
-    width: 56,
-    height: 56,
-    borderRadius: 999,
-    marginBottom: 8,
-  },
-  eyebrow: {
-    color: colors.primary,
-    fontWeight: '800',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: colors.text,
-  },
-  subtitle: {
-    color: colors.textMuted,
-    fontWeight: '700',
-  },
-  section: {
-    backgroundColor: colors.card,
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 14,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: colors.text,
-  },
-  fieldBlock: {
-    gap: 8,
-  },
-  fieldLabel: {
-    color: colors.text,
-    fontWeight: '800',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: colors.text,
-  },
-  notesInput: {
-    minHeight: 96,
-    textAlignVertical: 'top',
-  },
-  pillsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  pill: {
-    borderRadius: 999,
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-  },
-  pillActive: {
-    backgroundColor: colors.primary,
-  },
-  pillText: {
-    color: colors.text,
-    fontWeight: '700',
-  },
-  pillTextActive: {
-    color: '#FFFFFF',
-  },
-  primaryButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginTop: 6,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 16,
-  },
-  secondaryButton: {
-    borderRadius: 16,
-    paddingVertical: 15,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  secondaryButtonText: {
-    color: colors.text,
-    fontWeight: '800',
-  },
-  dangerButton: {
-    backgroundColor: '#EF4444',
-    borderRadius: 16,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginTop: 6,
-  },
-  dangerButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 16,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  summaryCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 18,
-    padding: 16,
-    gap: 10,
-  },
-  summaryLine: {
-    color: colors.text,
-    lineHeight: 20,
-  },
-  priceTotal: {
-    color: colors.primary,
-    fontWeight: '900',
-    fontSize: 20,
-    marginTop: 4,
-  },
-  amountLabel: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.primary,
-  },
-  feeBreakdown: {
-    backgroundColor: '#F0FDF4',
-    borderRadius: 12,
-    padding: 12,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  feeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  feeLabel: {
-    fontSize: 13,
-    color: colors.textMuted,
-    fontWeight: '600',
-  },
-  feeValue: {
-    fontSize: 13,
-    color: colors.text,
-    fontWeight: '700',
-  },
-  feeValueGreen: {
-    color: colors.primary,
-  },
-  cancelWarningBanner: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 12,
-    padding: 12,
-  },
-  cancelWarningText: {
-    color: '#92400E',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  savedCardsBlock: {
-    gap: 8,
-  },
-  savedCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: '#F8FAFC',
-  },
-  savedCardActive: {
-    borderColor: colors.primary,
-    backgroundColor: '#ECFDF5',
-  },
-  savedCardText: {
-    color: colors.text,
-    fontWeight: '700',
-  },
-  savedCardTextActive: {
-    color: colors.primary,
-  },
-  savedCardCheck: {
-    color: colors.primary,
-    fontWeight: '900',
-    fontSize: 16,
-  },
-  linkText: {
-    color: colors.textMuted,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  linkTextActive: {
-    color: colors.primary,
-  },
-  cardForm: {
-    gap: 10,
-  },
-  pciNote: {
-    color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  cardRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  cardRowItem: {
-    flex: 1,
-  },
-  errorBanner: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 12,
-    padding: 12,
-  },
-  errorText: {
-    color: '#B91C1C',
-    fontWeight: '700',
-  },
-  tipSubtitle: {
-    color: colors.textMuted,
-    fontWeight: '700',
-  },
-  invoiceCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 18,
-    padding: 16,
-    gap: 10,
-  },
-  invoiceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  invoiceLabel: {
-    color: colors.textMuted,
-    fontWeight: '700',
-    flex: 1,
-  },
-  invoiceValue: {
-    color: colors.text,
-    fontWeight: '800',
-    flex: 2,
-    textAlign: 'right',
-  },
-  invoiceTotalRow: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 10,
-    marginTop: 4,
-  },
-  invoiceTotalLabel: {
-    color: colors.text,
-    fontWeight: '900',
-    fontSize: 16,
-    flex: 1,
-  },
-  invoiceTotalValue: {
-    color: colors.primary,
-    fontWeight: '900',
-    fontSize: 16,
-    flex: 2,
-    textAlign: 'right',
-  },
-  invoiceLink: {
-    color: colors.primary,
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  refundBadge: {
-    backgroundColor: '#DCFCE7',
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 6,
-  },
-  refundBadgeText: {
-    color: '#166534',
-    fontWeight: '800',
-    fontSize: 13,
-  },
-  savedDogsSection: {
-    gap: 8,
-    marginBottom: 4,
-  },
-  savedDogRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: colors.card,
-  },
-  savedDogRowActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.badgeGreen,
-  },
-  savedDogName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  savedDogNameActive: {
-    color: colors.primaryDark,
-  },
-  selectedTick: {
-    color: colors.primary,
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  addNewDogButton: {
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderStyle: 'dashed',
-    borderRadius: 12,
-  },
-  addNewDogText: {
-    color: colors.primary,
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  dateStrip: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingRight: 16,
-  },
-  datePill: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  datePillActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  datePillText: {
-    color: colors.text,
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  datePillTextActive: {
-    color: '#FFFFFF',
-  },
-  noSlotsText: {
-    color: colors.textMuted,
-    fontWeight: '600',
-    fontStyle: 'italic',
-    marginVertical: 4,
-  },
+ container: {
+ flex: 1,
+ backgroundColor: colors.bg,
+ },
+ content: {
+ padding: 20,
+ paddingTop: 32,
+ paddingBottom: 120,
+ gap: 18,
+ },
+ back: {
+ color: colors.primary,
+ fontWeight: '800',
+ },
+ headerCard: {
+ backgroundColor: colors.card,
+ borderRadius: 26,
+ overflow: 'hidden',
+ borderWidth: 1,
+ borderColor: colors.border,
+ },
+ headerImage: {
+ width: '100%',
+ height: 190,
+ },
+ headerBody: {
+ backgroundColor: '#DCFCE7',
+ padding: 20,
+ gap: 6,
+ },
+ walkerThumb: {
+ width: 56,
+ height: 56,
+ borderRadius: 999,
+ marginBottom: 8,
+ },
+ eyebrow: {
+ color: colors.primary,
+ fontWeight: '800',
+ },
+ title: {
+ fontSize: 28,
+ fontWeight: '900',
+ color: colors.text,
+ },
+ subtitle: {
+ color: colors.textMuted,
+ fontWeight: '700',
+ },
+ section: {
+ backgroundColor: colors.card,
+ borderRadius: 24,
+ padding: 18,
+ borderWidth: 1,
+ borderColor: colors.border,
+ gap: 14,
+ },
+ sectionTitle: {
+ fontSize: 20,
+ fontWeight: '900',
+ color: colors.text,
+ },
+ fieldBlock: {
+ gap: 8,
+ },
+ fieldLabel: {
+ color: colors.text,
+ fontWeight: '800',
+ },
+ input: {
+ borderWidth: 1,
+ borderColor: colors.border,
+ borderRadius: 16,
+ paddingHorizontal: 14,
+ paddingVertical: 12,
+ color: colors.text,
+ },
+ notesInput: {
+ minHeight: 96,
+ textAlignVertical: 'top',
+ },
+ pillsWrap: {
+ flexDirection: 'row',
+ flexWrap: 'wrap',
+ gap: 8,
+ },
+ pill: {
+ borderRadius: 999,
+ backgroundColor: '#ECFDF5',
+ paddingHorizontal: 12,
+ paddingVertical: 9,
+ },
+ pillActive: {
+ backgroundColor: colors.primary,
+ },
+ pillText: {
+ color: colors.text,
+ fontWeight: '700',
+ },
+ pillTextActive: {
+ color: '#FFFFFF',
+ },
+ primaryButton: {
+ backgroundColor: colors.primary,
+ borderRadius: 16,
+ paddingVertical: 15,
+ alignItems: 'center',
+ marginTop: 6,
+ },
+ primaryButtonText: {
+ color: '#FFFFFF',
+ fontWeight: '900',
+ fontSize: 16,
+ },
+ secondaryButton: {
+ borderRadius: 16,
+ paddingVertical: 15,
+ alignItems: 'center',
+ borderWidth: 1,
+ borderColor: colors.border,
+ },
+ secondaryButtonText: {
+ color: colors.text,
+ fontWeight: '800',
+ },
+ primaryButtonDisabled: {
+ opacity: 0.6,
+ },
+ summaryLabel: {
+ color: colors.textMuted,
+ fontWeight: '700',
+ fontSize: 12,
+ marginTop: 6,
+ },
+ summaryValue: {
+ color: colors.text,
+ fontWeight: '800',
+ },
+ divider: {
+ height: 1,
+ backgroundColor: colors.border,
+ marginVertical: 4,
+ },
+ backgroundColor: '#F8FAFC',
+ borderRadius: 18,
+ padding: 16,
+ gap: 10,
+ },
+ summaryLine: {
+ color: colors.text,
+ lineHeight: 20,
+ },
+ priceTotal: {
+ color: colors.primary,
+ fontWeight: '900',
+ fontSize: 20,
+ marginTop: 4,
+ },
+ alphiniumCallout: {
+ backgroundColor: '#FEF3C7',
+ borderRadius: 18,
+ padding: 14,
+ gap: 6,
+ },
+ alphiniumTitle: {
+ color: '#92400E',
+ fontWeight: '900',
+ },
+ alphiniumText: {
+ color: '#92400E',
+ lineHeight: 20,
+ },
+ confirmText: {
+ color: colors.textMuted,
+ lineHeight: 22,
+ },
+ successCard: {
+ backgroundColor: '#DCFCE7',
+ borderRadius: 18,
+ padding: 16,
+ gap: 8,
+ },
+ successLine: {
+ color: colors.text,
+ fontWeight: '700',
+ },
 });
