@@ -27,6 +27,7 @@ const initialState = {
  walkers: WALKERS,
  phase: 'home',
  selectedWalker: WALKERS[0],
+ compareList: [],
  filters: { available: 'Any', sortBy: 'Distance', priceMax: 'Any', serviceType: 'All' },
  searchText: '',
  bookingData: { dogName: 'Buddy', breed: 'Cavoodle', size: 'Medium', serviceType: 'Group walk', date: 'Today', time: '7:00 AM', recurring: false, notes: 'Friendly with other dogs and loves park loops.' },
@@ -78,6 +79,17 @@ function reducer(state, action) {
  };
  case 'SET_SEARCH':
  return { ...state, searchText: action.payload };
+ case 'TOGGLE_COMPARE': {
+ const id = action.payload;
+ const list = state.compareList;
+ if (list.includes(id)) {
+ return { ...state, compareList: list.filter((wid) => wid !== id) };
+ }
+ if (list.length >= 3) return state;
+ return { ...state, compareList: [...list, id] };
+ }
+ case 'CLEAR_COMPARE':
+ return { ...state, compareList: [] };
  case 'SET_BOOKING_DATA':
  return {
  ...state,
@@ -151,6 +163,10 @@ export function filterWalkers(state) {
  });
 
  return sorted;
+}
+
+export function getCompareWalkers(state) {
+ return state.compareList.map((id) => state.walkers.find((w) => w.id === id)).filter(Boolean);
 }
 
 export function getWalkerReviews(walker) {
