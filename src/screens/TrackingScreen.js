@@ -1,75 +1,160 @@
-import React from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { getRouteHistory, getWalkPhotos, getWalkPosition, ROUTE_TOTAL_WAYPOINTS, TRACKING_POLL_INTERVAL_MS } from '../services/alphinium';
 import { WOOF_IMAGES } from '../media';
 import { useWoof } from '../store/woofStore';
 import { colors } from '../theme';
 
-const routeCells = [1, 2, 3, 4, 12, 20, 28, 29, 30, 38, 46, 47, 48];
-const pawCells = [3, 20, 38, 48];
-const totalCells = 48;
+// Grid dimensions for the route visualisation (6 × 8 = 48 cells).
+const GRID_COLS = 6;
+const TOTAL_CELLS = 48;
+
+/**
+ * Map a flat list of GPS waypoints onto the fixed grid cell indices.
+ * The first waypoint maps to cell 1, the last to cell TOTAL_CELLS,
+ * so the path winds predictably across the grid regardless of actual coordinates.
+ */
+function waypointsToGridCells(waypoints, totalWaypoints) {
+  // Fixed snake-path through the grid so the route looks intentional.
+  const snakePath = [];
+  for (let row = 0; row < TOTAL_CELLS / GRID_COLS; row++) {
+    const startCol = row % 2 === 0 ? 1 : GRID_COLS;
+    const endCol = row % 2 === 0 ? GRID_COLS : 1;
+    const direction = row % 2 === 0 ? 1 : -1;
+    for (let col = startCol; col !== endCol + direction; col += direction) {
+      snakePath.push(row * GRID_COLS + col);
+    }
+  }
+  const stepSize = Math.max(1, Math.floor(snakePath.length / totalWaypoints));
+  return waypoints.map((_, i) => snakePath[Math.min(i * stepSize, snakePath.length - 1)]);
+}
+
+const PAW_INTERVAL = 5; // place a paw emoji every N walked cells
 
 export default function TrackingScreen() {
- const { state, dispatch } = useWoof();
- const walker = state.selectedWalker;
- const completedCells = Math.round(routeCells.length * state.trackingProgress);
+  const { state, dispatch } = useWoof();
+  const walker = state.selectedWalker;
+  const walkId = state.bookingData?.walkId || 'demo-walk-1';
+  const intervalRef = useRef(null);
 
- return (
- <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
- <Pressable onPress={() => dispatch({ type: 'SET_PHASE', payload: 'home' })}>
- <Text style={styles.back}>← Back</Text>
- </Pressable>
+  const pollGPS = useCallback(async () => {
+    try {
+      const [coords, history, photos] = await Promise.all([
+        getWalkPosition(walkId),
+        getRouteHistory(walkId),
+        getWalkPhotos(walkId),
+      ]);
 
- <View style={styles.headerCard}>
- <Text style={styles.title}>️ Buddy's Live Walk</Text>
- <Text style={styles.subtitle}>{walker?.emoji || ''} {walker?.name || 'Jessica Park'} · Walk Progress: 40% · 18 min remaining</Text>
- </View>
+      dispatch({ type: 'SET_TRACKING_COORDS', payload: coords });
+      dispatch({ type: 'SET_ROUTE_HISTORY', payload: history, total: ROUTE_TOTAL_WAYPOINTS });
+      dispatch({ type: 'SET_WALK_PHOTOS', payload: photos });
+    } catch {
+      dispatch({ type: 'GPS_UNAVAILABLE' });
+    }
+  }, [walkId, dispatch]);
 
- <View style={styles.mapCard}>
- <Image source={{ uri: WOOF_IMAGES.trackingMap }} style={styles.mapImage} />
- <Text style={styles.mapTitle}>Live route grid</Text>
- <View style={styles.grid}>
- {Array.from({ length: totalCells }).map((_, index) => {
- const cell = index + 1;
- const routeIndex = routeCells.indexOf(cell);
- const walked = routeIndex !== -1 && routeIndex < completedCells;
- const onRoute = routeIndex !== -1;
- const hasPaw = pawCells.includes(cell) && walked;
- return (
- <View
- key={cell}
- style={[
- styles.cell,
- walked ? styles.cellWalked : null,
- onRoute && !walked ? styles.cellQueued : null,
- ]}
- >
- <Text style={styles.cellText}>{hasPaw ? '' : walked ? '•' : ''}</Text>
- </View>
- );
- })}
- </View>
- <Text style={styles.progressLabel}>Walk Progress: 40% · 18 min remaining</Text>
- </View>
+  useEffect(() => {
+    // Immediate first fetch, then poll on interval.
+    pollGPS();
+    intervalRef.current = setInterval(pollGPS, TRACKING_POLL_INTERVAL_MS);
+    return () => clearInterval(intervalRef.current);
+  }, [pollGPS]);
 
- <View style={styles.photoBanner}>
- <Image source={{ uri: WOOF_IMAGES.trackingPhoto }} style={styles.photoImage} />
- <View style={styles.photoContent}>
- <Text style={styles.photoTitle}> Photo Update</Text>
- <Text style={styles.photoText}>Jessica shared a happy park snapshot and Buddy is cruising along the route.</Text>
- </View>
- </View>
+  // Derive grid cells from live route history, falling back to static mock.
+  const walkedCells = state.routeHistory.length > 0
+    ? waypointsToGridCells(state.routeHistory, ROUTE_TOTAL_WAYPOINTS)
+    : [1, 2, 3, 4, 12, 20, 28, 29, 30]; // static fallback for graceful degradation
 
- <View style={styles.callout}>
- <Text style={styles.calloutTitle}> alphinium-maps</Text>
- <Text style={styles.calloutText}>Real GPS tracking, live route, photo sharing</Text>
- </View>
+  const walkedSet = new Set(walkedCells);
+  const progress = Math.round(state.trackingProgress * 100);
+  const minsRemaining = Math.round((1 - state.trackingProgress) * 30);
 
- <View style={styles.calloutSecondary}>
- <Text style={styles.calloutTitleSecondary}>alphinium-payments + alphinium-push</Text>
- <Text style={styles.calloutTextSecondary}>Auto-complete charges, tipping, and push alerts when the walk starts and ends.</Text>
- </View>
- </ScrollView>
- );
+  // Latest photo for the banner; fall back to static image.
+  const latestPhoto = state.walkPhotos.length > 0
+    ? state.walkPhotos[state.walkPhotos.length - 1]
+    : null;
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <Pressable onPress={() => dispatch({ type: 'SET_PHASE', payload: 'home' })}>
+        <Text style={styles.back}>← Back</Text>
+      </Pressable>
+
+      <View style={styles.headerCard}>
+        <Text style={styles.title}>️ Buddy's Live Walk</Text>
+        <Text style={styles.subtitle}>
+          {walker?.emoji || ''} {walker?.name || 'Jessica Park'} · Walk Progress: {progress}% · {minsRemaining} min remaining
+        </Text>
+        {!state.gpsAvailable && (
+          <Text style={styles.gpsWarning}>⚠️ GPS signal lost — showing last known position</Text>
+        )}
+      </View>
+
+      <View style={styles.mapCard}>
+        <Image source={{ uri: WOOF_IMAGES.trackingMap }} style={styles.mapImage} />
+        <Text style={styles.mapTitle}>
+          {state.routeHistory.length > 0 ? 'Live GPS route' : 'Route map'}
+        </Text>
+        <View style={styles.grid}>
+          {Array.from({ length: TOTAL_CELLS }).map((_, index) => {
+            const cell = index + 1;
+            const walked = walkedSet.has(cell);
+            const isCurrentPos = walkedCells[walkedCells.length - 1] === cell && state.gpsAvailable;
+            const hasPaw = walked && walkedCells.indexOf(cell) % PAW_INTERVAL === 0;
+            return (
+              <View
+                key={cell}
+                style={[
+                  styles.cell,
+                  walked ? styles.cellWalked : null,
+                  isCurrentPos ? styles.cellCurrent : null,
+                ]}
+              >
+                <Text style={styles.cellText}>
+                  {isCurrentPos ? '📍' : hasPaw ? '🐾' : walked ? '•' : ''}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+        <Text style={styles.progressLabel}>
+          Walk Progress: {progress}% · {minsRemaining} min remaining
+        </Text>
+        {state.trackingCoords && (
+          <Text style={styles.coordsLabel}>
+            📡 {state.trackingCoords.lat.toFixed(4)}, {state.trackingCoords.lng.toFixed(4)}
+          </Text>
+        )}
+      </View>
+
+      {/* Photo banner — live updates from walker's feed */}
+      <View style={styles.photoBanner}>
+        <Image
+          source={{ uri: latestPhoto?.uri || WOOF_IMAGES.trackingPhoto }}
+          style={styles.photoImage}
+        />
+        <View style={styles.photoContent}>
+          <Text style={styles.photoTitle}>📸 Photo Update</Text>
+          <Text style={styles.photoText}>
+            {latestPhoto?.caption || 'Jessica shared a happy park snapshot and Buddy is cruising along the route.'}
+          </Text>
+          {state.walkPhotos.length > 1 && (
+            <Text style={styles.photoCount}>+{state.walkPhotos.length - 1} more photo{state.walkPhotos.length > 2 ? 's' : ''} from this walk</Text>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.callout}>
+        <Text style={styles.calloutTitle}>📍 alphinium-maps</Text>
+        <Text style={styles.calloutText}>Real GPS tracking, live route, photo sharing</Text>
+      </View>
+
+      <View style={styles.calloutSecondary}>
+        <Text style={styles.calloutTitleSecondary}>alphinium-payments + alphinium-push</Text>
+        <Text style={styles.calloutTextSecondary}>Auto-complete charges, tipping, and push alerts when the walk starts and ends.</Text>
+      </View>
+    </ScrollView>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -137,6 +222,11 @@ const styles = StyleSheet.create({
  cellWalked: {
  backgroundColor: '#86EFAC',
  },
+ cellCurrent: {
+ backgroundColor: '#22C55E',
+ borderWidth: 2,
+ borderColor: '#15803D',
+ },
  cellQueued: {
  backgroundColor: '#D1FAE5',
  },
@@ -146,6 +236,16 @@ const styles = StyleSheet.create({
  progressLabel: {
  color: colors.text,
  fontWeight: '800',
+ },
+ coordsLabel: {
+ color: colors.textMuted,
+ fontSize: 11,
+ },
+ gpsWarning: {
+ color: '#B45309',
+ fontSize: 12,
+ fontWeight: '700',
+ marginTop: 4,
  },
  photoBanner: {
  backgroundColor: '#FEF3C7',
@@ -167,6 +267,12 @@ const styles = StyleSheet.create({
  photoText: {
  color: '#92400E',
  lineHeight: 20,
+ },
+ photoCount: {
+ color: '#92400E',
+ fontSize: 12,
+ marginTop: 4,
+ opacity: 0.8,
  },
  callout: {
  backgroundColor: '#DBEAFE',
