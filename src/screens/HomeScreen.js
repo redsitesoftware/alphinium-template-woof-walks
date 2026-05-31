@@ -38,6 +38,11 @@ function WalkerCard({ walker, onOpen, onBook }) {
  <View style={styles.cardTopContent}>
  <View style={styles.cardTitleRow}>
  <Text style={styles.cardTitle}>{walker.name}</Text>
+ {walker.verified ? (
+ <View style={styles.verifiedBadge}>
+ <Text style={styles.verifiedBadgeText}>✓ Verified</Text>
+ </View>
+ ) : null}
  {walker.badge ? (
  <View style={[styles.badge, { backgroundColor: walker.badgeColor || colors.badgeGreen }]}>
  <Text style={styles.badgeText}>{walker.badge}</Text>
@@ -155,6 +160,14 @@ export default function HomeScreen() {
  />
 
  <Text style={styles.resultsText}>{walkers.length} dog walkers near you</Text>
+
+ <Pressable style={styles.becomeWalkerBanner} onPress={() => dispatch({ type: 'SET_PHASE', payload: 'onboarding' })}>
+ <View style={styles.becomeWalkerContent}>
+ <Text style={styles.becomeWalkerTitle}>🐾 Become a Walker</Text>
+ <Text style={styles.becomeWalkerBody}>Earn money walking dogs in your neighbourhood. Apply today!</Text>
+ </View>
+ <Text style={styles.becomeWalkerArrow}>→</Text>
+ </Pressable>
 
  <View style={styles.list}>
  {walkers.map((walker) => (
@@ -465,5 +478,45 @@ const styles = StyleSheet.create({
  bookButtonText: {
  color: '#FFFFFF',
  fontWeight: '800',
+ },
+ verifiedBadge: {
+ backgroundColor: '#0EA5E9',
+ paddingHorizontal: 8,
+ paddingVertical: 4,
+ borderRadius: 999,
+ },
+ verifiedBadgeText: {
+ color: '#FFFFFF',
+ fontSize: 11,
+ fontWeight: '800',
+ },
+ becomeWalkerBanner: {
+ backgroundColor: '#FEF3C7',
+ borderRadius: 20,
+ padding: 16,
+ flexDirection: 'row',
+ alignItems: 'center',
+ borderWidth: 1,
+ borderColor: '#FDE68A',
+ gap: 12,
+ },
+ becomeWalkerContent: {
+ flex: 1,
+ gap: 4,
+ },
+ becomeWalkerTitle: {
+ fontSize: 16,
+ fontWeight: '900',
+ color: '#92400E',
+ },
+ becomeWalkerBody: {
+ fontSize: 13,
+ color: '#92400E',
+ lineHeight: 18,
+ },
+ becomeWalkerArrow: {
+ fontSize: 20,
+ fontWeight: '900',
+ color: '#92400E',
  },
 });

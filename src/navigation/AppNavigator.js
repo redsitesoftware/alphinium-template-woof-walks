@@ -4,6 +4,7 @@ import HomeScreen from '../screens/HomeScreen';
 import WalkerScreen from '../screens/WalkerScreen';
 import BookingScreen from '../screens/BookingScreen';
 import TrackingScreen from '../screens/TrackingScreen';
+import WalkerOnboardingScreen from '../screens/WalkerOnboardingScreen';
 import { useWoof } from '../store/woofStore';
 import { colors } from '../theme';
 
@@ -75,6 +76,7 @@ export default function AppNavigator() {
  {state.phase === 'walker' ? <WalkerScreen /> : null}
  {state.phase === 'booking' ? <BookingScreen /> : null}
  {state.phase === 'tracking' ? <TrackingScreen /> : null}
+ {state.phase === 'onboarding' ? <WalkerOnboardingScreen /> : null}
  <RuffChatWidget />
  </View>
  );
