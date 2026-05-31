@@ -1,4 +1,3 @@
-/**
  * Alphinium shared API client
  *
  * Provides a thin REST client and per-domain helper functions for the three
@@ -179,3 +178,121 @@ export async function pushSendNotification(params) {
     body: JSON.stringify(params),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Maps / GPS tracking helpers (alphinium-maps)
+// ---------------------------------------------------------------------------
+
+// Simulated GPS route for demo/dev (20 waypoints ≈ a park loop, sampled at ~5s each).
+const SIMULATED_ROUTE = [
+  { lat: -33.8856, lng: 151.2099 },
+  { lat: -33.8854, lng: 151.2103 },
+  { lat: -33.8851, lng: 151.2108 },
+  { lat: -33.8848, lng: 151.2113 },
+  { lat: -33.8845, lng: 151.2117 },
+  { lat: -33.8843, lng: 151.2122 },
+  { lat: -33.8841, lng: 151.2127 },
+  { lat: -33.8839, lng: 151.2131 },
+  { lat: -33.8837, lng: 151.2136 },
+  { lat: -33.8836, lng: 151.2141 },
+  { lat: -33.8835, lng: 151.2146 },
+  { lat: -33.8835, lng: 151.2151 },
+  { lat: -33.8836, lng: 151.2156 },
+  { lat: -33.8838, lng: 151.2160 },
+  { lat: -33.8841, lng: 151.2163 },
+  { lat: -33.8844, lng: 151.2165 },
+  { lat: -33.8847, lng: 151.2164 },
+  { lat: -33.8850, lng: 151.2161 },
+  { lat: -33.8852, lng: 151.2157 },
+  { lat: -33.8853, lng: 151.2152 },
+];
+
+const SIMULATED_PHOTOS = [
+  {
+    id: 'photo-1',
+    uri: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600',
+    caption: 'Buddy spotted a squirrel — full sprint mode activated! 🐿️',
+    timestamp: Date.now() - 12 * 60 * 1000,
+    walkerName: 'Jessica Park',
+  },
+  {
+    id: 'photo-2',
+    uri: 'https://images.unsplash.com/photo-1530281700549-e82e7bf110d6?w=600',
+    caption: 'Happy boy at the halfway point — tongue out, tail wagging! 🐾',
+    timestamp: Date.now() - 6 * 60 * 1000,
+    walkerName: 'Jessica Park',
+  },
+  {
+    id: 'photo-3',
+    uri: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=600',
+    caption: 'Water break at the fountain. Buddy is loving this walk! 💧',
+    timestamp: Date.now() - 2 * 60 * 1000,
+    walkerName: 'Jessica Park',
+  },
+];
+
+let _walkStep = 8;
+const _pollStartTime = Date.now();
+
+/** Configurable polling interval (ms). Components should import this constant. */
+export const TRACKING_POLL_INTERVAL_MS = 5000;
+
+/** Total waypoints in the simulated route (used for progress calculation). */
+export const ROUTE_TOTAL_WAYPOINTS = SIMULATED_ROUTE.length;
+
+/**
+ * Returns the current GPS position of the walker.
+ * Falls back to alphinium REST API in production; uses simulation in dev.
+ * @param {string} walkId
+ * @returns {Promise<{ lat: number, lng: number } | null>}
+ */
+export async function getWalkPosition(walkId) {
+  if (BASE_URL && MAPS_KEY) {
+    try {
+      const data = await alphiniumRequest(`/maps/walks/${encodeURIComponent(walkId)}/position`, MAPS_KEY);
+      return data;
+    } catch (_) {
+      // fall through to simulation
+    }
+  }
+  const elapsed = Date.now() - _pollStartTime;
+  const idx = Math.min(_walkStep + Math.floor(elapsed / TRACKING_POLL_INTERVAL_MS), SIMULATED_ROUTE.length - 1);
+  return SIMULATED_ROUTE[idx] ?? null;
+}
+
+/**
+ * Returns the full GPS route walked so far.
+ * @param {string} walkId
+ * @returns {Promise<Array<{ lat: number, lng: number }>>}
+ */
+export async function getRouteHistory(walkId) {
+  if (BASE_URL && MAPS_KEY) {
+    try {
+      return await alphiniumRequest(`/maps/walks/${encodeURIComponent(walkId)}/route`, MAPS_KEY);
+    } catch (_) {
+      // fall through to simulation
+    }
+  }
+  const elapsed = Date.now() - _pollStartTime;
+  const idx = Math.min(_walkStep + Math.floor(elapsed / TRACKING_POLL_INTERVAL_MS) + 1, SIMULATED_ROUTE.length);
+  return SIMULATED_ROUTE.slice(0, idx);
+}
+
+/**
+ * Returns photo updates published during the walk.
+ * @param {string} walkId
+ * @returns {Promise<Array<{ id: string, uri: string, caption: string, timestamp: number, walkerName: string }>>}
+ */
+export async function getWalkPhotos(walkId) {
+  if (BASE_URL && MAPS_KEY) {
+    try {
+      return await alphiniumRequest(`/maps/walks/${encodeURIComponent(walkId)}/photos`, MAPS_KEY);
+    } catch (_) {
+      // fall through to simulation
+    }
+  }
+  const elapsed = Date.now() - _pollStartTime;
+  const count = Math.min(Math.floor(elapsed / (TRACKING_POLL_INTERVAL_MS * 6)) + 2, SIMULATED_PHOTOS.length);
+  return SIMULATED_PHOTOS.slice(0, count);
+}
+

@@ -115,6 +115,11 @@ const initialState = {
  trackingProgress: 0.4,
  permissions: { location: null, notifications: null },
  reviews: {},
+ // Live GPS state (populated by alphinium-maps polling)
+ trackingCoords: null,
+ routeHistory: [],
+ walkPhotos: [],
+ gpsAvailable: true,
  chatOpen: false,
  chatInput: '',
  chatMessages: [
@@ -232,8 +237,26 @@ function reducer(state, action) {
  phase: 'walker',
  };
  }
+ case 'SET_TRACKING_COORDS':
+  return {
+   ...state,
+   trackingCoords: action.payload,
+   gpsAvailable: action.payload !== null,
+  };
+ case 'SET_ROUTE_HISTORY':
+  return {
+   ...state,
+   routeHistory: action.payload,
+   trackingProgress: action.payload.length > 0
+    ? action.payload.length / action.total
+    : state.trackingProgress,
+  };
+ case 'SET_WALK_PHOTOS':
+  return { ...state, walkPhotos: action.payload };
+ case 'GPS_UNAVAILABLE':
+  return { ...state, gpsAvailable: false };
  case 'START_TRACKING':
- return { ...state, trackingActive: true, phase: 'tracking' };
+  return { ...state, trackingActive: true, phase: 'tracking' };
  case 'TOGGLE_CHAT':
  return { ...state, chatOpen: !state.chatOpen };
  case 'SET_CHAT_INPUT':
