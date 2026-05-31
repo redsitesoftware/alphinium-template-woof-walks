@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "WoofWalks",
+    "slug": "woof-walks",
+    "version": "1.0.0",
+    "backgroundColor": "#F0FFF4",
+    "primaryColor": "#16A34A",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "name": "WoofWalks",
+      "description": "Book trusted GPS-tracked dog walkers",
+      "themeColor": "#16A34A",
+      "lang": "en"
+    },
+    "android": {
+      "package": "com.redsitesoftware.woofWalks"
+    },
+    "ios": {
+      "bundleIdentifier": "com.redsitesoftware.woofWalks"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "57321865-6471-4f7b-ad71-249d04d465df"
+      }
+    },
+    "owner": "zx10r06",
+    "description": "Book trusted GPS-tracked dog walkers"
+  }
+}
