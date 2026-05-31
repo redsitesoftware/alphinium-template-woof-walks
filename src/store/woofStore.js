@@ -33,6 +33,7 @@ const initialState = {
  bookingStep: 0,
  trackingActive: true,
  trackingProgress: 0.4,
+ permissions: { location: null, notifications: null },
  chatOpen: false,
  chatInput: '',
  chatMessages: [
@@ -55,6 +56,14 @@ function buildRuffReply(message) {
 
 function reducer(state, action) {
  switch (action.type) {
+ case 'SET_PERMISSIONS':
+ return {
+ ...state,
+ permissions: {
+ ...state.permissions,
+ ...action.payload,
+ },
+ };
  case 'SET_PHASE':
  return {
  ...state,
