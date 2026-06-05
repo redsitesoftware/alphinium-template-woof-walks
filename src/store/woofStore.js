@@ -114,6 +114,9 @@ const initialState = {
  trackingActive: true,
  trackingProgress: 0.4,
  permissions: { location: null, notifications: null },
+ // alphinium-push state
+ notificationPermission: null, // 'granted' | 'denied' | 'undetermined' | 'unavailable'
+ deviceToken: null,
  reviews: {},
  // Live GPS state (populated by alphinium-maps polling)
  trackingCoords: null,
@@ -257,6 +260,16 @@ function reducer(state, action) {
   return { ...state, gpsAvailable: false };
  case 'START_TRACKING':
   return { ...state, trackingActive: true, phase: 'tracking' };
+ case 'SET_NOTIFICATION_PERMISSION':
+  return { ...state, notificationPermission: action.payload };
+ case 'SET_DEVICE_TOKEN':
+  return { ...state, deviceToken: action.payload };
+ case 'WALK_PHOTO_RECEIVED': {
+  const incoming = action.payload;
+  if (!incoming?.photoUri) return state;
+  const photo = { uri: incoming.photoUri, caption: incoming.caption ?? '', timestamp: Date.now() };
+  return { ...state, walkPhotos: [photo, ...state.walkPhotos] };
+ }
  case 'TOGGLE_CHAT':
  return { ...state, chatOpen: !state.chatOpen };
  case 'SET_CHAT_INPUT':
