@@ -114,6 +114,9 @@ const initialState = {
  trackingActive: true,
  trackingProgress: 0.4,
  permissions: { location: null, notifications: null },
+ notificationPermission: null,
+ deviceToken: null,
+ latestWalkPhoto: null,
  reviews: {},
  // Live GPS state (populated by alphinium-maps polling)
  trackingCoords: null,
@@ -150,6 +153,12 @@ function reducer(state, action) {
  ...action.payload,
  },
  };
+ case 'SET_NOTIFICATION_PERMISSION':
+ return { ...state, notificationPermission: action.payload };
+ case 'SET_DEVICE_TOKEN':
+ return { ...state, deviceToken: action.payload };
+ case 'WALK_PHOTO_RECEIVED':
+ return { ...state, latestWalkPhoto: action.payload || null };
  case 'SET_PHASE':
  return {
  ...state,
