@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useReducer } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const WALKERS = [
  { id: 'w1', name: 'Jessica Park', emoji: '‍', suburb: 'Surry Hills', distance: 0.4, rating: 4.9, reviewCount: 287, pricePerWalk: 28, pricePer30: 18, available: true, nextSlot: 'Today 7am', dogs: 'Up to 3', badge: 'Top Rated', badgeColor: '#F59E0B', services: ['Solo walk', 'Group walk', 'Drop-in visit'], bio: 'Professional dog walker for 5 years. First aid certified. GPS tracked every walk.', tags: ['GPS tracking', 'Insured', 'Small dogs', 'Large dogs'], ratingBreakdown: { reliability: 4.9, punctuality: 4.8, communication: 5.0, care: 4.9 } },
@@ -14,6 +15,8 @@ const WALKERS = [
  { id: 'w11', name: 'Lucia Gomez', emoji: '‍', suburb: 'Erskineville', distance: 2.1, rating: 4.8, reviewCount: 156, pricePerWalk: 27, pricePer30: 17, available: false, nextSlot: 'Tomorrow 9am', dogs: 'Up to 3', badge: 'Popular', badgeColor: '#6366F1', services: ['Solo walk', 'Group walk', 'Drop-in visit'], bio: 'Calm, dependable walker with a loyal repeat client base across the inner west.', tags: ['Repeat clients', 'Calm energy', 'Inner west'], ratingBreakdown: { reliability: 4.9, punctuality: 4.8, communication: 4.8, care: 4.9 } },
  { id: 'w12', name: 'Ethan Clarke', emoji: '', suburb: 'Alexandria', distance: 3.8, rating: 4.7, reviewCount: 204, pricePerWalk: 26, pricePer30: 17, available: true, nextSlot: 'Today 6pm', dogs: 'Up to 4', badge: 'Certified', badgeColor: '#0EA5E9', services: ['Solo walk', 'Group walk', 'Training walk'], bio: 'Structured walks for energetic dogs with clear communication and evening coverage.', tags: ['Evening walks', 'High energy dogs', 'Certified'], ratingBreakdown: { reliability: 4.7, punctuality: 4.8, communication: 4.9, care: 4.6 } },
 ];
+
+const JWT_KEY = 'alphinium_auth_token';
 
 const WALKER_REVIEWS = {
  w1: [
@@ -98,6 +101,9 @@ const quickReplies = {
 const initialState = {
  walkers: WALKERS,
  phase: 'login',
+ authToken: null,
+ authUser: null,
+ isGuest: false,
  selectedWalker: WALKERS[0],
  compareList: [],
  filters: { available: 'Any', sortBy: 'Distance', priceMax: 'Any', serviceType: 'All' },
@@ -159,6 +165,17 @@ function reducer(state, action) {
  return { ...state, deviceToken: action.payload };
  case 'WALK_PHOTO_RECEIVED':
  return { ...state, latestWalkPhoto: action.payload || null };
+ case 'COMPLETE_LOGIN':
+ return {
+ ...state,
+ phase: 'home',
+ authToken: action.guest ? null : action.token ?? null,
+ authUser: action.guest ? null : action.user ?? null,
+ isGuest: Boolean(action.guest),
+ bookingStep: 0,
+ chatOpen: false,
+ chatInput: '',
+ };
  case 'SET_PHASE':
  return {
  ...state,
@@ -270,6 +287,9 @@ function reducer(state, action) {
   return {
    ...state,
    phase: 'login',
+   authToken: null,
+   authUser: null,
+   isGuest: false,
    bookingStep: 0,
    chatOpen: false,
    chatInput: '',
@@ -301,7 +321,13 @@ const WoofContext = createContext(null);
 
 export function WoofProvider({ children }) {
  const [state, dispatch] = useReducer(reducer, initialState);
- const logout = useCallback(() => dispatch({ type: 'LOGOUT' }), [dispatch]);
+ const logout = useCallback(async () => {
+  try {
+   await AsyncStorage.removeItem(JWT_KEY);
+  } finally {
+   dispatch({ type: 'LOGOUT' });
+  }
+ }, [dispatch]);
  const value = useMemo(() => ({ state, dispatch, logout }), [state, logout]);
  return <WoofContext.Provider value={value}>{children}</WoofContext.Provider>;
 }
