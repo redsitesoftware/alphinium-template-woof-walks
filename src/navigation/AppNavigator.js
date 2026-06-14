@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
 import WalkerScreen from '../screens/WalkerScreen';
 import BookingScreen from '../screens/BookingScreen';
@@ -72,12 +73,13 @@ export default function AppNavigator() {
 
  return (
  <View style={styles.container}>
+ {state.phase === 'login' ? <LoginScreen /> : null}
  {state.phase === 'home' ? <HomeScreen /> : null}
  {state.phase === 'walker' ? <WalkerScreen /> : null}
  {state.phase === 'booking' ? <BookingScreen /> : null}
  {state.phase === 'tracking' ? <TrackingScreen /> : null}
  {state.phase === 'review' ? <ReviewScreen /> : null}
- <RuffChatWidget />
+ {state.phase !== 'login' ? <RuffChatWidget /> : null}
  </View>
  );
 }

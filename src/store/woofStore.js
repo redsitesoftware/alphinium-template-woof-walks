@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useReducer } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useReducer } from 'react';
 
 const WALKERS = [
  { id: 'w1', name: 'Jessica Park', emoji: '‍', suburb: 'Surry Hills', distance: 0.4, rating: 4.9, reviewCount: 287, pricePerWalk: 28, pricePer30: 18, available: true, nextSlot: 'Today 7am', dogs: 'Up to 3', badge: 'Top Rated', badgeColor: '#F59E0B', services: ['Solo walk', 'Group walk', 'Drop-in visit'], bio: 'Professional dog walker for 5 years. First aid certified. GPS tracked every walk.', tags: ['GPS tracking', 'Insured', 'Small dogs', 'Large dogs'], ratingBreakdown: { reliability: 4.9, punctuality: 4.8, communication: 5.0, care: 4.9 } },
@@ -97,7 +97,7 @@ const quickReplies = {
 
 const initialState = {
  walkers: WALKERS,
- phase: 'home',
+ phase: 'login',
  selectedWalker: WALKERS[0],
  compareList: [],
  filters: { available: 'Any', sortBy: 'Distance', priceMax: 'Any', serviceType: 'All' },
@@ -266,6 +266,14 @@ function reducer(state, action) {
   return { ...state, gpsAvailable: false };
  case 'START_TRACKING':
   return { ...state, trackingActive: true, phase: 'tracking' };
+ case 'LOGOUT':
+  return {
+   ...state,
+   phase: 'login',
+   bookingStep: 0,
+   chatOpen: false,
+   chatInput: '',
+  };
  case 'TOGGLE_CHAT':
  return { ...state, chatOpen: !state.chatOpen };
  case 'SET_CHAT_INPUT':
@@ -293,7 +301,8 @@ const WoofContext = createContext(null);
 
 export function WoofProvider({ children }) {
  const [state, dispatch] = useReducer(reducer, initialState);
- const value = useMemo(() => ({ state, dispatch }), [state]);
+ const logout = useCallback(() => dispatch({ type: 'LOGOUT' }), [dispatch]);
+ const value = useMemo(() => ({ state, dispatch, logout }), [state, logout]);
  return <WoofContext.Provider value={value}>{children}</WoofContext.Provider>;
 }
 

@@ -3,6 +3,7 @@
     "name": "WoofWalks",
     "slug": "woof-walks",
     "version": "1.0.0",
+    "scheme": "woofwalks",
     "backgroundColor": "#F0FFF4",
     "primaryColor": "#16A34A",
     "platforms": [
