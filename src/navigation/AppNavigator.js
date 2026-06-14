@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -18,6 +18,10 @@ const QUICK_CHIPS = [
 
 function RuffChatWidget() {
  const { state, dispatch } = useWoof();
+
+ const handleLogin = useCallback(({ guest, token, user }) => {
+ dispatch({ type: 'COMPLETE_LOGIN', guest, token, user });
+ }, [dispatch]);
 
  return (
  <View pointerEvents="box-none" style={styles.chatLayer}>
@@ -69,11 +73,11 @@ function RuffChatWidget() {
 }
 
 export default function AppNavigator() {
- const { state } = useWoof();
+ const { state, dispatch } = useWoof();
 
  return (
  <View style={styles.container}>
- {state.phase === 'login' ? <LoginScreen /> : null}
+ {state.phase === 'login' ? <LoginScreen onLogin={handleLogin} /> : null}
  {state.phase === 'home' ? <HomeScreen /> : null}
  {state.phase === 'walker' ? <WalkerScreen /> : null}
  {state.phase === 'booking' ? <BookingScreen /> : null}
