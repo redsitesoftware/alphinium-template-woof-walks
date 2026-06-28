@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getWalkers as apiGetWalkers, createWalkerProfile as apiCreateWalkerProfile, getWalkerAvailability } from '../services/walkers';
 import { getMyDogs, createDog } from '../services/dogs';
 import { createBooking, mapBookingData, payBooking as apiPayBooking, cancelBooking as apiCancelBooking, submitReview as apiSubmitReview } from '../services/bookings';
-import { uploadWalkPhoto as apiUploadWalkPhoto } from '../services/alphinium';
+import { postWalkLocation as apiPostWalkLocation, uploadWalkPhoto as apiUploadWalkPhoto } from '../services/alphinium';
 import { scheduleWalkNotification, NOTIFICATION_TYPES } from '../services/notifications';
 
 // Static fallback data used when the walkers API is unavailable (dev/demo mode).
@@ -142,6 +142,9 @@ const initialState = {
  cancelLoading: false,
  cancelError: null,
  cancellationResult: null, // { refund_reference, refund_amount_cents, fee_retained_cents, refund_type }
+ // Walker GPS publishing state
+ locationPublishing: false,
+ locationPublishError: null,
  // Review submission state
  reviewSubmitting: false,
  reviewSubmitError: null,
@@ -397,6 +400,12 @@ function reducer(state, action) {
  return { ...state, cancelLoading: false, cancellationResult: action.payload, paymentStatus: 'refunded' };
  case 'CANCEL_ERROR':
  return { ...state, cancelLoading: false, cancelError: action.payload };
+ case 'LOCATION_PUBLISH_START':
+ return { ...state, locationPublishing: true };
+ case 'LOCATION_PUBLISH_DONE':
+ return { ...state, locationPublishing: false, locationPublishError: null };
+ case 'LOCATION_PUBLISH_ERROR':
+ return { ...state, locationPublishing: false, locationPublishError: action.payload };
  case 'REVIEW_SUBMIT_START':
  return { ...state, reviewSubmitting: true, reviewSubmitError: null, reviewSubmitted: false };
  case 'REVIEW_SUBMIT_SUCCESS':
@@ -522,6 +531,17 @@ export function WoofProvider({ children }) {
   }
  }, [state.authToken]);
 
+ const publishWalkerLocation = useCallback(async (walkId, coords) => {
+  dispatch({ type: 'LOCATION_PUBLISH_START' });
+  try {
+   await apiPostWalkLocation(walkId, { ...coords, timestamp: Date.now() }, state.authToken);
+   dispatch({ type: 'LOCATION_PUBLISH_DONE' });
+  } catch (error) {
+   dispatch({ type: 'LOCATION_PUBLISH_ERROR', payload: error.message });
+   // Never re-throw — GPS publishing is best-effort
+  }
+ }, [state.authToken]);
+
  const submitReview = useCallback(async (bookingId, rating, text) => {
   dispatch({ type: 'REVIEW_SUBMIT_START' });
   try {
@@ -544,8 +564,8 @@ export function WoofProvider({ children }) {
  }, [state.authToken, state.selectedWalker]);
 
  const value = useMemo(
-  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking, submitReview }),
-  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking, submitReview],
+  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking, publishWalkerLocation, submitReview }),
+  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking, publishWalkerLocation, submitReview],
  );
  return <WoofContext.Provider value={value}>{children}</WoofContext.Provider>;
 }

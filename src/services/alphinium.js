@@ -331,3 +331,38 @@ export async function uploadWalkPhoto(walkId, photoPayload, authToken) {
   };
 }
 
+
+/**
+ * Publish a walker's current GPS position to the server (best-effort).
+ *
+ * GPS position publishing is fire-and-forget — errors are silently swallowed
+ * so a network blip never crashes the tracking session.
+ *
+ * Falls back to a no-op `{ accepted: true }` when BASE_URL or MAPS_KEY is
+ * not configured (demo / CI environments).
+ *
+ * @param {string} walkId - The active walk identifier
+ * @param {{ lat: number, lng: number, timestamp: number }} coords - Position payload
+ * @param {string} authToken - Walker's Bearer auth token
+ * @returns {Promise<{ accepted: boolean }>}
+ */
+export async function postWalkLocation(walkId, coords, authToken) {
+  if (!BASE_URL || !MAPS_KEY) {
+    return { accepted: true };
+  }
+
+  try {
+    return await alphiniumRequest(
+      `/maps/walks/${encodeURIComponent(walkId)}/location`,
+      MAPS_KEY,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify(coords),
+      }
+    );
+  } catch (_) {
+    // Best-effort — silent failure so tracking is never interrupted
+    return { accepted: false };
+  }
+}
