@@ -66,7 +66,7 @@ async function requestPermissions(dispatch) {
 }
 
 export default function TrackingScreen() {
- const { state, dispatch } = useWoof();
+  const { state, dispatch, publishWalkerLocation } = useWoof();
  const walker = state.selectedWalker;
   const walkerName = walker?.name || 'Jessica Park';
   const isComplete = state.trackingProgress >= 1.0;
@@ -83,10 +83,12 @@ export default function TrackingScreen() {
       dispatch({ type: 'SET_TRACKING_COORDS', payload: coords });
       dispatch({ type: 'SET_ROUTE_HISTORY', payload: history, total: ROUTE_TOTAL_WAYPOINTS });
       dispatch({ type: 'SET_WALK_PHOTOS', payload: photos });
+      // Simulate walker device publishing position at same cadence as owner polls
+      publishWalkerLocation(walkId, coords);
     } catch {
       dispatch({ type: 'GPS_UNAVAILABLE' });
     }
-  }, [walkId, dispatch]);
+  }, [walkId, dispatch, publishWalkerLocation]);
 
   const notifiedStart = useRef(false);
  const notifiedPhoto = useRef(false);
