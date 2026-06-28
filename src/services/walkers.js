@@ -158,3 +158,89 @@ export async function createWalkerProfile(profileData) {
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Availability & schedule management (EXPO_PUBLIC_WOOF_API_BASE_URL)
+// These follow the payments.js throw-on-error pattern since callers need to
+// surface failures directly (no silent fallback to static data).
+// ---------------------------------------------------------------------------
+
+const WOOF_API_BASE_URL = process.env.EXPO_PUBLIC_WOOF_API_BASE_URL || '';
+
+/**
+ * Fetch available time slots for a specific walker on a given date.
+ *
+ * @param {string} walkerId - The walker's ID.
+ * @param {string} date - ISO date string (e.g. '2026-07-04').
+ * @param {string} [authToken] - Optional auth token (public endpoint).
+ * @returns {Promise<Array<{ time: string, available: boolean }>>} Array of time slot objects.
+ * @throws {Error} If the request fails.
+ */
+export async function getWalkerAvailability(walkerId, date, authToken) {
+  const url = `${WOOF_API_BASE_URL}/api/walkers/${walkerId}/availability?date=${encodeURIComponent(date)}`;
+  const headers = { 'Content-Type': 'application/json' };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  const response = await fetch(url, { method: 'GET', headers });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || `Failed to fetch walker availability (${response.status})`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Set the walker's weekly recurring schedule.
+ *
+ * @param {{ mon?: { start: string, end: string }, tue?: { start: string, end: string }, wed?: { start: string, end: string }, thu?: { start: string, end: string }, fri?: { start: string, end: string }, sat?: { start: string, end: string }, sun?: { start: string, end: string } }} schedule - Weekly schedule keyed by day abbreviation with start/end times (24h, e.g. '07:00').
+ * @param {string} authToken - Auth token for the authenticated walker.
+ * @returns {Promise<object>} The updated schedule as returned by the API.
+ * @throws {Error} If the request fails.
+ */
+export async function setWeeklySchedule(schedule, authToken) {
+  const response = await fetch(`${WOOF_API_BASE_URL}/api/walkers/me/schedule`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: JSON.stringify(schedule),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || `Failed to update weekly schedule (${response.status})`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Block one or more specific dates so the walker is unavailable.
+ *
+ * @param {string[]} dates - Array of ISO date strings to block (e.g. ['2026-07-04', '2026-07-05']).
+ * @param {string} authToken - Auth token for the authenticated walker.
+ * @returns {Promise<{ blocked: string[] }>} The list of newly blocked dates as confirmed by the API.
+ * @throws {Error} If the request fails.
+ */
+export async function blockDates(dates, authToken) {
+  const response = await fetch(`${WOOF_API_BASE_URL}/api/walkers/me/block`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: JSON.stringify({ dates }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || `Failed to block dates (${response.status})`);
+  }
+
+  return response.json();
+}
