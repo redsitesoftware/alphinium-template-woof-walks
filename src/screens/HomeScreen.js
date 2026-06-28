@@ -45,7 +45,7 @@ function WalkerCard({ walker, onOpen, onBook, onCompare, isCompared, compareDisa
  </View>
  ) : null}
  {walker.verified ? (
- <View style={[styles.badge, styles.verifiedBadge]}>
+ <View style={[styles.badge, styles.verifiedBadge]} accessibilityLabel="Verified walker">
  <Text style={styles.badgeText}>✓ Verified</Text>
  </View>
  ) : null}
