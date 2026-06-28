@@ -366,3 +366,43 @@ export async function postWalkLocation(walkId, coords, authToken) {
     return { accepted: false };
   }
 }
+
+/**
+ * Subscribe to a real-time GPS position stream for an active walk via WebSocket.
+ *
+ * When ALPHINIUM_API_BASE_URL is not set (demo / CI), returns a no-op cleanup
+ * function immediately — TrackingScreen's existing REST polling continues to
+ * provide simulated position updates in that case.
+ *
+ * @param {string} walkId - The active walk identifier
+ * @param {(coords: { lat: number, lng: number }) => void} onPosition - Called for each valid position message
+ * @param {((err: Event) => void) | undefined} onError - Called on non-fatal WS errors (never throws)
+ * @returns {() => void} Unsubscribe / cleanup function — call on component unmount
+ */
+export function subscribeWalkTracking(walkId, onPosition, onError) {
+  const WS_BASE = BASE_URL ? BASE_URL.replace(/^http/, 'ws') : null;
+  if (!WS_BASE) {
+    // Simulation: no-op — TrackingScreen already simulates via REST polling
+    return () => {};
+  }
+
+  const url = `${WS_BASE}/walks/${encodeURIComponent(walkId)}/track?key=${MAPS_KEY}`;
+  const ws = new WebSocket(url);
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.lat != null && data.lng != null) {
+        onPosition({ lat: data.lat, lng: data.lng });
+      }
+    } catch (_) {}
+  };
+
+  ws.onerror = (err) => {
+    if (onError) onError(err);
+  };
+
+  ws.onclose = () => {};
+
+  return () => ws.close();
+}

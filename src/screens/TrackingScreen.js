@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { getRouteHistory, getWalkPhotos, getWalkPosition, ROUTE_TOTAL_WAYPOINTS, TRACKING_POLL_INTERVAL_MS } from '../services/alphinium';
+import { getRouteHistory, getWalkPhotos, getWalkPosition, ROUTE_TOTAL_WAYPOINTS, subscribeWalkTracking, TRACKING_POLL_INTERVAL_MS } from '../services/alphinium';
 import { WOOF_IMAGES } from '../media';
 import { scheduleWalkNotification, scheduleReviewPrompt, NOTIFICATION_TYPES } from '../services/notifications';
 import { useWoof } from '../store/woofStore';
@@ -143,6 +143,17 @@ export default function TrackingScreen() {
     intervalRef.current = setInterval(pollGPS, TRACKING_POLL_INTERVAL_MS);
     return () => clearInterval(intervalRef.current);
   }, [pollGPS]);
+
+  // Real-time GPS stream via WebSocket (production).
+  // Falls back gracefully when API unavailable — REST polling above continues.
+  useEffect(() => {
+    const unsubscribe = subscribeWalkTracking(
+      walkId,
+      (coords) => dispatch({ type: 'SET_TRACKING_COORDS', payload: coords }),
+      (_err) => { /* non-fatal — REST polling continues */ }
+    );
+    return unsubscribe;
+  }, [walkId]);
 
   // Derive grid cells from live route history, falling back to static mock.
   const walkedCells = state.routeHistory.length > 0
