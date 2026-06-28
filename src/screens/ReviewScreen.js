@@ -1,8 +1,18 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { getWalkerPhoto } from '../media';
 import { useWoof } from '../store/woofStore';
 import { colors } from '../theme';
+
+// expo-notifications is not available on web; guard import.
+let Notifications = null;
+if (Platform.OS !== 'web') {
+  try {
+    Notifications = require('expo-notifications');
+  } catch {
+    // expo-notifications not installed — no-op
+  }
+}
 
 export default function ReviewScreen() {
   const { state, dispatch, submitReview } = useWoof();
@@ -16,6 +26,14 @@ export default function ReviewScreen() {
     if (!comment.trim() || state.reviewSubmitting) return;
     try {
       await submitReview(state.bookingId, rating, comment.trim());
+      // Cancel the deferred review-prompt notification since the user already reviewed
+      try {
+        if (Notifications) {
+          await Notifications.cancelAllScheduledNotificationsAsync();
+        }
+      } catch {
+        // Non-fatal — continue even if cancellation fails
+      }
     } catch {
       // error already in state.reviewSubmitError
     }
