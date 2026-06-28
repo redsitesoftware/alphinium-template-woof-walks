@@ -91,6 +91,9 @@ function mapApiWalker(apiWalker) {
     badge: apiWalker.badge ?? null,
     badgeColor: apiWalker.badge_color ?? null,
 
+    // Verification status
+    verified: apiWalker.verified ?? false,
+
     // Services / bio / tags (years_experience merged in)
     services: apiWalker.services ?? [],
     bio: (apiWalker.bio ?? '') + expBio,
