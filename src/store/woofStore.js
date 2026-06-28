@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getWalkers as apiGetWalkers, createWalkerProfile as apiCreateWalkerProfile, getWalkerAvailability } from '../services/walkers';
 import { getMyDogs, createDog } from '../services/dogs';
 import { createBooking, mapBookingData, payBooking as apiPayBooking, cancelBooking as apiCancelBooking, submitReview as apiSubmitReview } from '../services/bookings';
-import { postWalkLocation as apiPostWalkLocation, uploadWalkPhoto as apiUploadWalkPhoto } from '../services/alphinium';
+import { postWalkLocation as apiPostWalkLocation, uploadWalkPhoto as apiUploadWalkPhoto, completeWalk as apiCompleteWalk } from '../services/alphinium';
 import { scheduleWalkNotification, NOTIFICATION_TYPES } from '../services/notifications';
 
 // Static fallback data used when the walkers API is unavailable (dev/demo mode).
@@ -163,9 +163,7 @@ const initialState = {
  gpsAvailable: true,
  photoUploading: false,
  photoUploadError: null,
- // Walk completion state (populated by completeWalk API — #93)
- walkSummary: null, // { distanceKm, durationMin, photoCount, mapUrl } | null
- walkNotes: '',
+ walkSummary: null,
  chatOpen: false,
  chatInput: '',
  chatMessages: [
@@ -290,18 +288,8 @@ function reducer(state, action) {
  return { ...state, tipPercent: action.payload };
  case 'REFUND_BOOKING':
  return { ...state, paymentStatus: 'refunded', invoice: { ...state.invoice, refundReference: action.payload.refundReference } };
- case 'COMPLETE_WALK': {
-  const notes = action.payload?.notes ?? '';
-  // Derive a demo walkSummary from current tracking state.
-  // In production this is replaced by the response from the completeWalk API (#93).
-  const demoSummary = {
-   distanceKm: parseFloat((state.trackingProgress * 3.2).toFixed(1)),
-   durationMin: Math.round(state.trackingProgress * 30),
-   photoCount: state.walkPhotos.length,
-   mapUrl: null,
-  };
-  return { ...state, trackingProgress: 1.0, phase: 'review', walkNotes: notes, walkSummary: demoSummary };
- }
+ case 'COMPLETE_WALK':
+ return { ...state, trackingProgress: 1.0, phase: 'review', walkSummary: action.payload ?? null };
  case 'SUBMIT_REVIEW': {
  const { walkerId, rating, text, author } = action.payload;
  const existing = state.reviews[walkerId] || [];
@@ -521,6 +509,25 @@ export function WoofProvider({ children }) {
   }
  }, [state.selectedWalker, state.authToken]);
 
+ const completeWalk = useCallback(async (walkId, { notes = '' } = {}) => {
+  try {
+   const summary = await apiCompleteWalk(
+    walkId,
+    {
+     notes,
+     routeHistory: state.routeHistory,
+     durationMin: Math.round(state.routeHistory.length * 5 / 60) || 0,
+     photoCount: state.walkPhotos.length,
+    },
+    state.authToken
+   );
+   dispatch({ type: 'COMPLETE_WALK', payload: summary });
+  } catch (_) {
+   // Graceful degradation: walk transitions to review even if API call fails
+   dispatch({ type: 'COMPLETE_WALK', payload: null });
+  }
+ }, [state.routeHistory, state.walkPhotos, state.authToken]);
+
  const payBooking = useCallback(async (bookingId, paymentPayload) => {
   try {
    const result = await apiPayBooking(bookingId, paymentPayload, state.authToken);
@@ -577,8 +584,8 @@ export function WoofProvider({ children }) {
  }, [state.authToken, state.selectedWalker]);
 
  const value = useMemo(
-  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking, publishWalkerLocation, submitReview }),
-  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking, publishWalkerLocation, submitReview],
+  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking, publishWalkerLocation, submitReview, completeWalk }),
+  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking, publishWalkerLocation, submitReview, completeWalk],
  );
  return <WoofContext.Provider value={value}>{children}</WoofContext.Provider>;
 }
