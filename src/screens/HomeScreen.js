@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
  borderRadius: 999,
  },
  verifiedBadge: {
-  backgroundColor: colors.info,
+ backgroundColor: colors.info,
  },
  badgeText: {
  color: '#FFFFFF',
