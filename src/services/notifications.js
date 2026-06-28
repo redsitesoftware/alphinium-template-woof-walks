@@ -185,3 +185,35 @@ function handleWalkEvent(event, data, dispatch, navigation) {
       break;
   }
 }
+
+/**
+ * Schedule a deferred local notification prompting the owner to review their walk.
+ *
+ * In development (`__DEV__`), the notification fires immediately so it can be
+ * tested without waiting 2 hours. In production, defaults to a 2-hour delay.
+ *
+ * Falls back to a no-op gracefully when Notifications is unavailable (web/CI).
+ * Non-fatal — notification failure never crashes the app.
+ *
+ * @param {string} walkerName - Walker's display name for the notification body
+ * @param {number} [delayMs] - Override delay in ms; defaults to 2h in prod, 0 in dev
+ */
+export async function scheduleReviewPrompt(walkerName, delayMs) {
+  if (!Notifications) return;
+
+  const defaultDelay = typeof __DEV__ !== 'undefined' && __DEV__ ? 0 : 2 * 60 * 60 * 1000;
+  const resolvedDelay = typeof delayMs === 'number' ? delayMs : defaultDelay;
+
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '⭐ How was your walk?',
+        body: `Rate your walk with ${walkerName}`,
+        data: { event: 'review.prompt' },
+      },
+      trigger: resolvedDelay > 0 ? { seconds: Math.round(resolvedDelay / 1000) } : null,
+    });
+  } catch {
+    // Non-fatal — notification permissions may not be granted
+  }
+}
