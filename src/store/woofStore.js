@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useMemo, useReducer } fr
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getWalkers as apiGetWalkers, createWalkerProfile as apiCreateWalkerProfile, getWalkerAvailability } from '../services/walkers';
 import { getMyDogs, createDog } from '../services/dogs';
+import { createBooking, mapBookingData } from '../services/bookings';
 
 // Static fallback data used when the walkers API is unavailable (dev/demo mode).
 const FALLBACK_WALKERS = [
@@ -126,6 +127,11 @@ const initialState = {
  selectedSavedCardId: null,
  invoice: null, // { bookingReference, amountCents, tipCents, currency, walkerName, date, invoiceUrl, last4, brand }
  tipPercent: null, // 10 | 15 | 20 | 'custom' | null
+ // Booking record (created before payment)
+ bookingId: null,         // returned by POST /api/bookings
+ bookingStatus: null,     // 'confirmed' | 'pending_walker' | null
+ bookingCreating: false,
+ bookingCreateError: null,
  trackingActive: true,
  trackingProgress: 0.4,
  permissions: { location: null, notifications: null },
@@ -355,6 +361,12 @@ function reducer(state, action) {
  return { ...state, availabilityLoading: false, availabilitySlots: action.payload };
  case 'LOAD_AVAILABILITY_ERROR':
  return { ...state, availabilityLoading: false, availabilitySlots: [] };
+ case 'BOOKING_CREATE_START':
+ return { ...state, bookingCreating: true, bookingCreateError: null };
+ case 'BOOKING_CREATE_SUCCESS':
+ return { ...state, bookingCreating: false, bookingId: action.payload.booking_id, bookingStatus: action.payload.status };
+ case 'BOOKING_CREATE_ERROR':
+ return { ...state, bookingCreating: false, bookingCreateError: action.payload };
  default:
  return state;
  }
@@ -418,9 +430,22 @@ export function WoofProvider({ children }) {
   }
  }, [state.authToken]);
 
+ const createBookingRecord = useCallback(async () => {
+  dispatch({ type: 'BOOKING_CREATE_START' });
+  try {
+   const payload = mapBookingData(state.bookingData, state.selectedWalker, state.dogs);
+   const result = await createBooking(payload, state.authToken);
+   dispatch({ type: 'BOOKING_CREATE_SUCCESS', payload: result });
+   return result;
+  } catch (error) {
+   dispatch({ type: 'BOOKING_CREATE_ERROR', payload: error.message });
+   throw error;
+  }
+ }, [state.bookingData, state.selectedWalker, state.dogs, state.authToken]);
+
  const value = useMemo(
-  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability }),
-  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability],
+  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord }),
+  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord],
  );
  return <WoofContext.Provider value={value}>{children}</WoofContext.Provider>;
 }
