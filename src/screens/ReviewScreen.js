@@ -1,33 +1,27 @@
 import React, { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { getWalkerPhoto } from '../media';
 import { useWoof } from '../store/woofStore';
 import { colors } from '../theme';
 
 export default function ReviewScreen() {
-  const { state, dispatch } = useWoof();
+  const { state, dispatch, submitReview } = useWoof();
   const walker = state.selectedWalker;
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
-  const [submitted, setSubmitted] = useState(false);
 
   if (!walker) return null;
 
-  function handleSubmit() {
-    if (!comment.trim()) return;
-    dispatch({
-      type: 'SUBMIT_REVIEW',
-      payload: {
-        walkerId: walker.id,
-        rating,
-        text: comment.trim(),
-        author: 'You',
-      },
-    });
-    setSubmitted(true);
+  async function handleSubmit() {
+    if (!comment.trim() || state.reviewSubmitting) return;
+    try {
+      await submitReview(state.bookingId, rating, comment.trim());
+    } catch {
+      // error already in state.reviewSubmitError
+    }
   }
 
-  if (submitted) {
+  if (state.reviewSubmitted) {
     return (
       <View style={styles.successContainer}>
         <Text style={styles.successEmoji}>🎉</Text>
@@ -79,12 +73,22 @@ export default function ReviewScreen() {
       </View>
 
       <Pressable
-        style={[styles.submitButton, !comment.trim() && styles.submitButtonDisabled]}
+        style={[styles.submitButton, (!comment.trim() || state.reviewSubmitting) && styles.submitButtonDisabled]}
         onPress={handleSubmit}
-        disabled={!comment.trim()}
+        disabled={!comment.trim() || state.reviewSubmitting}
       >
-        <Text style={styles.submitButtonText}>Submit Review</Text>
+        {state.reviewSubmitting ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.submitButtonText}>Submit Review</Text>
+        )}
       </Pressable>
+
+      {state.reviewSubmitError ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>⚠️ {state.reviewSubmitError}</Text>
+        </View>
+      ) : null}
 
       <Pressable onPress={() => dispatch({ type: 'SET_PHASE', payload: 'home' })} style={styles.skipButton}>
         <Text style={styles.skipText}>Skip for now</Text>
@@ -214,6 +218,17 @@ const styles = StyleSheet.create({
   skipText: {
     color: colors.textMuted,
     fontWeight: '700',
+  },
+  errorBanner: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 14,
+    padding: 14,
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#DC2626',
+    fontWeight: '700',
+    fontSize: 14,
   },
   successContainer: {
     flex: 1,

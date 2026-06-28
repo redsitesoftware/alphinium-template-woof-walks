@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useMemo, useReducer } fr
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getWalkers as apiGetWalkers, createWalkerProfile as apiCreateWalkerProfile, getWalkerAvailability } from '../services/walkers';
 import { getMyDogs, createDog } from '../services/dogs';
-import { createBooking, mapBookingData, payBooking as apiPayBooking, cancelBooking as apiCancelBooking } from '../services/bookings';
+import { createBooking, mapBookingData, payBooking as apiPayBooking, cancelBooking as apiCancelBooking, submitReview as apiSubmitReview } from '../services/bookings';
 import { uploadWalkPhoto as apiUploadWalkPhoto } from '../services/alphinium';
 import { scheduleWalkNotification, NOTIFICATION_TYPES } from '../services/notifications';
 
@@ -142,6 +142,10 @@ const initialState = {
  cancelLoading: false,
  cancelError: null,
  cancellationResult: null, // { refund_reference, refund_amount_cents, fee_retained_cents, refund_type }
+ // Review submission state
+ reviewSubmitting: false,
+ reviewSubmitError: null,
+ reviewSubmitted: false,
  trackingActive: true,
  trackingProgress: 0.4,
  permissions: { location: null, notifications: null },
@@ -393,6 +397,14 @@ function reducer(state, action) {
  return { ...state, cancelLoading: false, cancellationResult: action.payload, paymentStatus: 'refunded' };
  case 'CANCEL_ERROR':
  return { ...state, cancelLoading: false, cancelError: action.payload };
+ case 'REVIEW_SUBMIT_START':
+ return { ...state, reviewSubmitting: true, reviewSubmitError: null, reviewSubmitted: false };
+ case 'REVIEW_SUBMIT_SUCCESS':
+ return { ...state, reviewSubmitting: false, reviewSubmitted: true };
+ case 'REVIEW_SUBMIT_ERROR':
+ return { ...state, reviewSubmitting: false, reviewSubmitError: action.payload };
+ case 'REVIEW_RESET':
+ return { ...state, reviewSubmitting: false, reviewSubmitError: null, reviewSubmitted: false };
  case 'PHOTO_UPLOAD_START':
  return { ...state, photoUploading: true, photoUploadError: null };
  case 'PHOTO_UPLOAD_SUCCESS':
@@ -510,9 +522,30 @@ export function WoofProvider({ children }) {
   }
  }, [state.authToken]);
 
+ const submitReview = useCallback(async (bookingId, rating, text) => {
+  dispatch({ type: 'REVIEW_SUBMIT_START' });
+  try {
+   const result = await apiSubmitReview(
+    bookingId,
+    { rating, text, reviewer_type: 'owner', walker_id: state.selectedWalker?.id },
+    state.authToken
+   );
+   // Update the local walker's rating display via existing reducer case
+   dispatch({
+    type: 'SUBMIT_REVIEW',
+    payload: { walkerId: state.selectedWalker?.id, rating, text, author: 'You' },
+   });
+   dispatch({ type: 'REVIEW_SUBMIT_SUCCESS', payload: result });
+   return result;
+  } catch (error) {
+   dispatch({ type: 'REVIEW_SUBMIT_ERROR', payload: error.message });
+   throw error;
+  }
+ }, [state.authToken, state.selectedWalker]);
+
  const value = useMemo(
-  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking }),
-  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking],
+  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking, submitReview }),
+  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking, submitReview],
  );
  return <WoofContext.Provider value={value}>{children}</WoofContext.Provider>;
 }
