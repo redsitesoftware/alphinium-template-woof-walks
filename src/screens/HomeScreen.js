@@ -9,6 +9,7 @@ const FILTERS = {
  serviceType: ['All', 'Solo Walk', 'Group Walk', 'Drop-in'],
  priceMax: ['Any', 'Under $22', 'Under $28', 'Under $35'],
  sortBy: ['Distance', 'Rating', 'Price ↑'],
+ verified: ['Any', 'Verified'],
 };
 
 function FilterRow({ label, value, options, onChange }) {
@@ -41,6 +42,11 @@ function WalkerCard({ walker, onOpen, onBook, onCompare, isCompared, compareDisa
  {walker.badge ? (
  <View style={[styles.badge, { backgroundColor: walker.badgeColor || colors.badgeGreen }]}>
  <Text style={styles.badgeText}>{walker.badge}</Text>
+ </View>
+ ) : null}
+ {walker.verified ? (
+ <View style={[styles.badge, styles.verifiedBadge]}>
+ <Text style={styles.badgeText}>✓ Verified</Text>
  </View>
  ) : null}
  </View>
@@ -169,6 +175,12 @@ export default function HomeScreen() {
  value={state.filters.sortBy}
  options={FILTERS.sortBy}
  onChange={(value) => dispatch({ type: 'SET_FILTER', key: 'sortBy', value })}
+ />
+ <FilterRow
+ label="Verified"
+ value={state.filters.verified}
+ options={FILTERS.verified}
+ onChange={(value) => dispatch({ type: 'SET_FILTER', key: 'verified', value })}
  />
 
  <Text style={styles.resultsText}>{walkers.length} dog walkers near you</Text>
@@ -513,6 +525,9 @@ const styles = StyleSheet.create({
  paddingHorizontal: 10,
  paddingVertical: 5,
  borderRadius: 999,
+ },
+ verifiedBadge: {
+  backgroundColor: colors.info,
  },
  badgeText: {
  color: '#FFFFFF',
