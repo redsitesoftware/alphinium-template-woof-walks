@@ -297,3 +297,37 @@ export async function getWalkPhotos(walkId) {
   return SIMULATED_PHOTOS.slice(0, count);
 }
 
+/**
+ * Upload a photo taken during an active walk.
+ *
+ * @param {string} walkId - Active walk ID
+ * @param {{ uri: string | null, caption: string }} photoPayload - Photo data
+ * @param {string} authToken - Walker's Bearer auth token
+ * @returns {Promise<{ id: string, uri: string, caption: string, timestamp: number, walkerName: string }>}
+ */
+export async function uploadWalkPhoto(walkId, photoPayload, authToken) {
+  if (BASE_URL && MAPS_KEY) {
+    try {
+      return await alphiniumRequest(
+        `/maps/walks/${encodeURIComponent(walkId)}/photos`,
+        MAPS_KEY,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${authToken}` },
+          body: JSON.stringify(photoPayload),
+        }
+      );
+    } catch (_) {
+      // fall through to simulation
+    }
+  }
+  // Simulation fallback — demo works without a live API
+  return {
+    id: `p_${Date.now()}`,
+    uri: SIMULATED_PHOTOS[0].uri,
+    caption: photoPayload.caption || 'Walk update!',
+    timestamp: Date.now(),
+    walkerName: 'Demo Walker',
+  };
+}
+

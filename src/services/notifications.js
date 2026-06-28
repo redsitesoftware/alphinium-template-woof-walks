@@ -18,6 +18,43 @@ try {
   // alphinium SDK not yet configured (task #5 dependency)
 }
 
+// ---------------------------------------------------------------------------
+// Walk notification scheduling
+// ---------------------------------------------------------------------------
+
+/** Notification type identifiers for walk lifecycle events. */
+export const NOTIFICATION_TYPES = {
+  WALK_STARTED: 'walk.started',
+  PHOTO_UPDATE: 'walk.photo',
+  WALK_ENDED: 'walk.ended',
+};
+
+/**
+ * Schedule a local notification for a walk lifecycle event.
+ * Falls back to a no-op gracefully when Notifications is unavailable (web/CI).
+ *
+ * @param {string} type - One of NOTIFICATION_TYPES values
+ * @param {string} walkerName - Walker's display name for the notification body
+ */
+export async function scheduleWalkNotification(type, walkerName) {
+  if (!Notifications) return;
+  const messages = {
+    [NOTIFICATION_TYPES.WALK_STARTED]: { title: '🐾 Walk Started!', body: `${walkerName} has started the walk.` },
+    [NOTIFICATION_TYPES.PHOTO_UPDATE]: { title: '📸 New Photo!', body: `${walkerName} shared a photo from the walk.` },
+    [NOTIFICATION_TYPES.WALK_ENDED]: { title: '✅ Walk Complete!', body: `${walkerName} has finished the walk.` },
+  };
+  const msg = messages[type];
+  if (!msg) return;
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: { title: msg.title, body: msg.body, data: { event: type } },
+      trigger: null, // fire immediately
+    });
+  } catch {
+    // Non-fatal — notifications may not be permitted
+  }
+}
+
 /**
  * Request push notification permissions and register the device token
  * with alphinium-push.
