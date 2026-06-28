@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getWalkers as apiGetWalkers, createWalkerProfile as apiCreateWalkerProfile, getWalkerAvailability } from '../services/walkers';
 import { getMyDogs, createDog } from '../services/dogs';
 import { createBooking, mapBookingData } from '../services/bookings';
+import { uploadWalkPhoto as apiUploadWalkPhoto } from '../services/alphinium';
+import { scheduleWalkNotification, NOTIFICATION_TYPES } from '../services/notifications';
 
 // Static fallback data used when the walkers API is unavailable (dev/demo mode).
 const FALLBACK_WALKERS = [
@@ -144,6 +146,8 @@ const initialState = {
  routeHistory: [],
  walkPhotos: [],
  gpsAvailable: true,
+ photoUploading: false,
+ photoUploadError: null,
  chatOpen: false,
  chatInput: '',
  chatMessages: [
@@ -367,6 +371,12 @@ function reducer(state, action) {
  return { ...state, bookingCreating: false, bookingId: action.payload.booking_id, bookingStatus: action.payload.status };
  case 'BOOKING_CREATE_ERROR':
  return { ...state, bookingCreating: false, bookingCreateError: action.payload };
+ case 'PHOTO_UPLOAD_START':
+ return { ...state, photoUploading: true, photoUploadError: null };
+ case 'PHOTO_UPLOAD_SUCCESS':
+ return { ...state, photoUploading: false, walkPhotos: [...state.walkPhotos, action.payload] };
+ case 'PHOTO_UPLOAD_ERROR':
+ return { ...state, photoUploading: false, photoUploadError: action.payload };
  default:
  return state;
  }
@@ -443,9 +453,21 @@ export function WoofProvider({ children }) {
   }
  }, [state.bookingData, state.selectedWalker, state.dogs, state.authToken]);
 
+ const uploadWalkPhoto = useCallback(async (walkId, caption) => {
+  dispatch({ type: 'PHOTO_UPLOAD_START' });
+  try {
+   const walkerName = state.selectedWalker?.name ?? 'Walker';
+   const photo = await apiUploadWalkPhoto(walkId, { uri: null, caption }, state.authToken);
+   dispatch({ type: 'PHOTO_UPLOAD_SUCCESS', payload: photo });
+   scheduleWalkNotification(NOTIFICATION_TYPES.PHOTO_UPDATE, walkerName);
+  } catch (error) {
+   dispatch({ type: 'PHOTO_UPLOAD_ERROR', payload: error.message });
+  }
+ }, [state.selectedWalker, state.authToken]);
+
  const value = useMemo(
-  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord }),
-  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord],
+  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto }),
+  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto],
  );
  return <WoofContext.Provider value={value}>{children}</WoofContext.Provider>;
 }
