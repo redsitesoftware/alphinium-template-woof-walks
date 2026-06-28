@@ -430,7 +430,7 @@ function InvoiceStep({ invoice, dispatch, walker }) {
 export default function BookingScreen() {
   const { state, dispatch } = useWoof();
   const walker = state.selectedWalker;
-  const { bookingData, bookingStep, paymentStatus, paymentError, savedCards, selectedSavedCardId, invoice, tipPercent } = state;
+  const { bookingData, bookingStep, paymentStatus, paymentError, savedCards, selectedSavedCardId, invoice, tipPercent, dogs } = state;
 
   useEffect(() => {
     // Pre-fetch saved cards when entering the booking flow
@@ -462,6 +462,39 @@ export default function BookingScreen() {
       {/* Step 0 — Dog & booking details */}
       {bookingStep === 0 && (
         <View style={styles.section}>
+          {/* Saved dog selector */}
+          {dogs && dogs.length > 0 && (
+            <View style={styles.savedDogsSection}>
+              <Text style={styles.fieldLabel}>Your dogs</Text>
+              {dogs.map((dog) => {
+                const isSelected = bookingData.dogName === dog.name && bookingData.breed === dog.breed;
+                return (
+                  <Pressable
+                    key={dog.id}
+                    style={[styles.savedDogRow, isSelected ? styles.savedDogRowActive : null]}
+                    onPress={() =>
+                      dispatch({
+                        type: 'SET_BOOKING_DATA',
+                        payload: { dogName: dog.name, breed: dog.breed },
+                      })
+                    }
+                  >
+                    <Text style={[styles.savedDogName, isSelected ? styles.savedDogNameActive : null]}>
+                      🐾 {dog.name} · {dog.breed}
+                    </Text>
+                    {isSelected ? <Text style={styles.selectedTick}>✓</Text> : null}
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                style={styles.addNewDogButton}
+                onPress={() => dispatch({ type: 'SET_PHASE', payload: 'dogProfile' })}
+              >
+                <Text style={styles.addNewDogText}>+ Add new dog</Text>
+              </Pressable>
+            </View>
+          )}
+
           <Field label="Dog name" value={bookingData.dogName} onChangeText={(dogName) => dispatch({ type: 'SET_BOOKING_DATA', payload: { dogName } })} placeholder="Buddy" />
           <Field label="Breed" value={bookingData.breed} onChangeText={(breed) => dispatch({ type: 'SET_BOOKING_DATA', payload: { breed } })} placeholder="Cavoodle" />
 
@@ -833,5 +866,50 @@ const styles = StyleSheet.create({
     color: '#166534',
     fontWeight: '800',
     fontSize: 13,
+  },
+  savedDogsSection: {
+    gap: 8,
+    marginBottom: 4,
+  },
+  savedDogRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: colors.card,
+  },
+  savedDogRowActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.badgeGreen,
+  },
+  savedDogName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  savedDogNameActive: {
+    color: colors.primaryDark,
+  },
+  selectedTick: {
+    color: colors.primary,
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  addNewDogButton: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+    borderRadius: 12,
+  },
+  addNewDogText: {
+    color: colors.primary,
+    fontWeight: '700',
+    fontSize: 14,
   },
 });
