@@ -100,7 +100,7 @@ function ErrorBanner({ message }) {
 
 // ─── Step 2: Payment ─────────────────────────────────────────────────────────
 
-function PaymentStep({ walker, bookingData, dispatch, paymentStatus, paymentError, savedCards, selectedSavedCardId, bookingId, bookingCreating, bookingCreateError, createBookingRecord }) {
+function PaymentStep({ walker, bookingData, dispatch, paymentStatus, paymentError, savedCards, selectedSavedCardId, bookingId, bookingCreating, bookingCreateError, createBookingRecord, payBooking }) {
   const [useNewCard, setUseNewCard] = useState(savedCards.length === 0);
   // Local card input state — raw card fields live here only, never dispatched to store
   const [cardNumber, setCardNumber] = useState('');
@@ -125,8 +125,17 @@ function PaymentStep({ walker, bookingData, dispatch, paymentStatus, paymentErro
       if (useNewCard) {
         // Tokenise locally — raw numbers never touch the store
         const { cardToken } = await tokeniseCard({ number: cardNumber, expiry, cvv });
+        // Try payBooking() (real Stripe layer) then fall back to checkout() simulation
+        try {
+          const payResult = await payBooking(resolvedBookingId, { card_token: cardToken, amount_cents: amountCents });
+          dispatch({ type: 'PAY_BOOKING_SUCCESS', payload: { paymentReference: payResult.payment_reference, platformFeeCents: payResult.platform_fee_cents, walkerPayoutCents: payResult.walker_payout_cents } });
+        } catch (_) { /* fall through to checkout() */ }
         result = await checkout({ bookingDetails: bookingData, amountCents, cardToken, bookingReference: resolvedBookingId });
       } else {
+        try {
+          const payResult = await payBooking(resolvedBookingId, { saved_card_id: selectedSavedCardId, amount_cents: amountCents });
+          dispatch({ type: 'PAY_BOOKING_SUCCESS', payload: { paymentReference: payResult.payment_reference, platformFeeCents: payResult.platform_fee_cents, walkerPayoutCents: payResult.walker_payout_cents } });
+        } catch (_) { /* fall through to checkout() */ }
         result = await checkout({ bookingDetails: bookingData, amountCents, savedCardId: selectedSavedCardId, bookingReference: resolvedBookingId });
       }
 
@@ -177,6 +186,22 @@ function PaymentStep({ walker, bookingData, dispatch, paymentStatus, paymentErro
       <Text style={styles.amountLabel}>
         Total: ${(amountCents / 100).toFixed(2)} AUD
       </Text>
+
+      {/* 15% platform fee breakdown */}
+      <View style={styles.feeBreakdown}>
+        <View style={styles.feeRow}>
+          <Text style={styles.feeLabel}>Walk fee</Text>
+          <Text style={styles.feeValue}>${(amountCents / 100).toFixed(2)}</Text>
+        </View>
+        <View style={styles.feeRow}>
+          <Text style={styles.feeLabel}>Platform fee (15%)</Text>
+          <Text style={styles.feeValue}>${(Math.round(amountCents * 0.15) / 100).toFixed(2)}</Text>
+        </View>
+        <View style={styles.feeRow}>
+          <Text style={styles.feeLabel}>Walker receives</Text>
+          <Text style={[styles.feeValue, styles.feeValueGreen]}>${((amountCents - Math.round(amountCents * 0.15)) / 100).toFixed(2)}</Text>
+        </View>
+      </View>
 
       {savedCards.length > 0 && (
         <View style={styles.savedCardsBlock}>
@@ -368,17 +393,29 @@ function TippingStep({ walker, invoice, tipPercent, dispatch }) {
 
 // ─── Step 4: Invoice / receipt ────────────────────────────────────────────────
 
-function InvoiceStep({ invoice, dispatch, walker }) {
+function InvoiceStep({ invoice, dispatch, walker, cancelBooking, cancellationResult, cancelLoading, cancelError }) {
   const [refunding, setRefunding] = useState(false);
   const [refundError, setRefundError] = useState(null);
-  const alreadyRefunded = invoice?.refundReference != null;
+  const alreadyRefunded = invoice?.refundReference != null || cancellationResult != null;
 
-  async function handleRefund() {
+  // Time-gated cancellation logic
+  const hoursUntilWalk = invoice?.date
+    ? (new Date(invoice.date).getTime() - Date.now()) / 3_600_000
+    : null;
+  const walkPast = hoursUntilWalk !== null && hoursUntilWalk < 0;
+  const withinWindow = hoursUntilWalk !== null && hoursUntilWalk <= 24 && hoursUntilWalk >= 0;
+
+  async function handleCancel() {
     setRefunding(true);
     setRefundError(null);
     try {
-      const result = await refund({ bookingReference: invoice.bookingReference });
-      dispatch({ type: 'REFUND_BOOKING', payload: result });
+      if (cancelBooking) {
+        await cancelBooking(invoice.bookingReference, invoice.date);
+      } else {
+        // Fallback to payments.js refund if cancelBooking unavailable
+        const result = await refund({ bookingReference: invoice.bookingReference });
+        dispatch({ type: 'REFUND_BOOKING', payload: result });
+      }
     } catch (err) {
       setRefundError(err.message);
     } finally {
@@ -437,21 +474,40 @@ function InvoiceStep({ invoice, dispatch, walker }) {
         <Text style={styles.invoiceLink}>📄 Invoice: {invoice.invoiceUrl}</Text>
       )}
 
-      {!alreadyRefunded && (
+      {!alreadyRefunded && !walkPast && (
         <>
-          <ErrorBanner message={refundError} />
+          {withinWindow && (
+            <View style={styles.cancelWarningBanner}>
+              <Text style={styles.cancelWarningText}>⚠️ A 50% no-show fee applies as the walk is within 24 hours</Text>
+            </View>
+          )}
+          <ErrorBanner message={refundError || cancelError} />
           <Pressable
-            style={[styles.dangerButton, refunding ? styles.buttonDisabled : null]}
-            onPress={handleRefund}
-            disabled={refunding}
+            style={[styles.dangerButton, (refunding || cancelLoading) ? styles.buttonDisabled : null]}
+            onPress={handleCancel}
+            disabled={refunding || cancelLoading}
           >
-            {refunding ? (
+            {(refunding || cancelLoading) ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.dangerButtonText}>Cancel & Refund</Text>
+              <Text style={styles.dangerButtonText}>
+                {withinWindow ? 'Cancel (no-show fee applies)' : 'Cancel & Full Refund'}
+              </Text>
             )}
           </Pressable>
         </>
+      )}
+
+      {walkPast && !alreadyRefunded && (
+        <View style={styles.cancelWarningBanner}>
+          <Text style={styles.cancelWarningText}>Walk in progress or completed — cancellation unavailable</Text>
+        </View>
+      )}
+
+      {cancellationResult && (
+        <View style={styles.refundBadge}>
+          <Text style={styles.refundBadgeText}>✓ Cancellation processed · refund ${(cancellationResult.refund_amount_cents / 100).toFixed(2)}</Text>
+        </View>
       )}
 
       <Pressable style={styles.primaryButton} onPress={() => dispatch({ type: 'START_TRACKING' })}>
@@ -467,10 +523,10 @@ function InvoiceStep({ invoice, dispatch, walker }) {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function BookingScreen() {
-  const { state, dispatch, loadAvailability, createBookingRecord } = useWoof();
+  const { state, dispatch, loadAvailability, createBookingRecord, payBooking, cancelBooking } = useWoof();
   const walker = state.selectedWalker;
   const [selectedDate, setSelectedDate] = React.useState(DATE_STRIP[0]);
-  const { bookingData, bookingStep, paymentStatus, paymentError, savedCards, selectedSavedCardId, invoice, tipPercent, dogs, availabilitySlots, availabilityLoading, bookingId, bookingCreating, bookingCreateError } = state;
+  const { bookingData, bookingStep, paymentStatus, paymentError, savedCards, selectedSavedCardId, invoice, tipPercent, dogs, availabilitySlots, availabilityLoading, bookingId, bookingCreating, bookingCreateError, cancellationResult, cancelLoading, cancelError } = state;
 
   useEffect(() => {
     // Pre-fetch saved cards when entering the booking flow
@@ -649,6 +705,7 @@ export default function BookingScreen() {
           bookingCreating={bookingCreating}
           bookingCreateError={bookingCreateError}
           createBookingRecord={createBookingRecord}
+          payBooking={payBooking}
         />
       )}
 
@@ -668,6 +725,10 @@ export default function BookingScreen() {
           invoice={invoice}
           dispatch={dispatch}
           walker={walker}
+          cancelBooking={cancelBooking}
+          cancellationResult={cancellationResult}
+          cancelLoading={cancelLoading}
+          cancelError={cancelError}
         />
       )}
     </ScrollView>
@@ -835,6 +896,41 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
     color: colors.primary,
+  },
+  feeBreakdown: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: 12,
+    padding: 12,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  feeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  feeLabel: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontWeight: '600',
+  },
+  feeValue: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: '700',
+  },
+  feeValueGreen: {
+    color: colors.primary,
+  },
+  cancelWarningBanner: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    padding: 12,
+  },
+  cancelWarningText: {
+    color: '#92400E',
+    fontWeight: '700',
+    fontSize: 13,
   },
   savedCardsBlock: {
     gap: 8,
