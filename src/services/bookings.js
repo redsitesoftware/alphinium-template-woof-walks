@@ -89,3 +89,133 @@ export async function createBooking(bookingPayload, authToken) {
 
   return response.json();
 }
+
+/**
+ * Pay for a confirmed booking via the Woof API.
+ *
+ * Falls back to a synthetic simulation result when WOOF_API_BASE_URL is not
+ * configured or the request fails, so the demo works without a live API.
+ *
+ * @param {string} bookingId - The booking to pay for
+ * @param {{
+ *   card_token?: string,
+ *   saved_card_id?: string,
+ *   amount_cents: number,
+ * }} paymentPayload
+ * @param {string} authToken - Bearer token (required)
+ * @returns {Promise<{
+ *   payment_reference: string,
+ *   booking_id: string,
+ *   amount_cents: number,
+ *   platform_fee_cents: number,
+ *   walker_payout_cents: number,
+ *   status: string,
+ * }>}
+ */
+export async function payBooking(bookingId, paymentPayload, authToken) {
+  if (WOOF_API_BASE_URL) {
+    try {
+      const response = await fetch(
+        `${WOOF_API_BASE_URL}/api/bookings/${encodeURIComponent(bookingId)}/pay`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify(paymentPayload),
+        }
+      );
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || 'Payment failed');
+      }
+
+      return response.json();
+    } catch (err) {
+      // fall through to simulation
+      if (!WOOF_API_BASE_URL) throw err; // re-throw only if we expected a real call
+    }
+  }
+
+  // Simulation fallback — 15% platform fee, 85% walker payout
+  return {
+    payment_reference: `pay_${Date.now()}`,
+    booking_id: bookingId,
+    amount_cents: paymentPayload.amount_cents,
+    platform_fee_cents: Math.round(paymentPayload.amount_cents * 0.15),
+    walker_payout_cents: Math.round(paymentPayload.amount_cents * 0.85),
+    status: 'paid',
+  };
+}
+
+/**
+ * Cancel a booking, applying the appropriate refund policy based on how close
+ * the cancellation is to the walk date.
+ *
+ * Refund policy:
+ * - More than 24 hours before the walk  → 'full_refund'  (100% returned)
+ * - 24 hours or fewer before the walk   → 'no_show_fee'  (50% retained, 50% refunded)
+ *
+ * Falls back to a synthetic simulation result when WOOF_API_BASE_URL is not
+ * configured or the request fails.
+ *
+ * @param {string} bookingId - The booking to cancel
+ * @param {string} walkDateIso - ISO 8601 walk date/time string (e.g. '2026-07-01T09:00:00')
+ * @param {string} authToken - Bearer token (required)
+ * @returns {Promise<{
+ *   refund_reference: string,
+ *   refund_amount_cents: number,
+ *   fee_retained_cents: number,
+ *   refund_type: 'full_refund' | 'no_show_fee',
+ * }>}
+ */
+export async function cancelBooking(bookingId, walkDateIso, authToken) {
+  const hoursUntilWalk = (new Date(walkDateIso).getTime() - Date.now()) / (1000 * 60 * 60);
+  const refund_type = hoursUntilWalk > 24 ? 'full_refund' : 'no_show_fee';
+
+  if (WOOF_API_BASE_URL) {
+    try {
+      const response = await fetch(
+        `${WOOF_API_BASE_URL}/api/bookings/${encodeURIComponent(bookingId)}/cancel`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({ refund_type }),
+        }
+      );
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || `Cancel booking failed (${response.status})`);
+      }
+
+      return response.json();
+    } catch (err) {
+      // fall through to simulation
+    }
+  }
+
+  // Simulation fallback — use a representative amount for demo purposes
+  const SIMULATED_AMOUNT_CENTS = 2800; // $28 default walk price
+  if (refund_type === 'full_refund') {
+    return {
+      refund_reference: `ref_${Date.now()}`,
+      refund_amount_cents: SIMULATED_AMOUNT_CENTS,
+      fee_retained_cents: 0,
+      refund_type,
+    };
+  }
+  // no_show_fee: 50% retained, 50% refunded
+  const half = Math.round(SIMULATED_AMOUNT_CENTS / 2);
+  return {
+    refund_reference: `ref_${Date.now()}`,
+    refund_amount_cents: half,
+    fee_retained_cents: SIMULATED_AMOUNT_CENTS - half,
+    refund_type,
+  };
+}

@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useMemo, useReducer } fr
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getWalkers as apiGetWalkers, createWalkerProfile as apiCreateWalkerProfile, getWalkerAvailability } from '../services/walkers';
 import { getMyDogs, createDog } from '../services/dogs';
-import { createBooking, mapBookingData } from '../services/bookings';
+import { createBooking, mapBookingData, payBooking as apiPayBooking, cancelBooking as apiCancelBooking } from '../services/bookings';
 import { uploadWalkPhoto as apiUploadWalkPhoto } from '../services/alphinium';
 import { scheduleWalkNotification, NOTIFICATION_TYPES } from '../services/notifications';
 
@@ -134,6 +134,14 @@ const initialState = {
  bookingStatus: null,     // 'confirmed' | 'pending_walker' | null
  bookingCreating: false,
  bookingCreateError: null,
+ // Payment result fields (from payBooking())
+ paymentReference: null,
+ platformFeeCents: 0,
+ walkerPayoutCents: 0,
+ // Cancellation state
+ cancelLoading: false,
+ cancelError: null,
+ cancellationResult: null, // { refund_reference, refund_amount_cents, fee_retained_cents, refund_type }
  trackingActive: true,
  trackingProgress: 0.4,
  permissions: { location: null, notifications: null },
@@ -371,6 +379,20 @@ function reducer(state, action) {
  return { ...state, bookingCreating: false, bookingId: action.payload.booking_id, bookingStatus: action.payload.status };
  case 'BOOKING_CREATE_ERROR':
  return { ...state, bookingCreating: false, bookingCreateError: action.payload };
+ case 'PAY_BOOKING_SUCCESS':
+ return {
+ ...state,
+ paymentReference: action.payload.payment_reference,
+ platformFeeCents: action.payload.platform_fee_cents,
+ walkerPayoutCents: action.payload.walker_payout_cents,
+ paymentStatus: 'success',
+ };
+ case 'CANCEL_START':
+ return { ...state, cancelLoading: true, cancelError: null };
+ case 'CANCEL_SUCCESS':
+ return { ...state, cancelLoading: false, cancellationResult: action.payload, paymentStatus: 'refunded' };
+ case 'CANCEL_ERROR':
+ return { ...state, cancelLoading: false, cancelError: action.payload };
  case 'PHOTO_UPLOAD_START':
  return { ...state, photoUploading: true, photoUploadError: null };
  case 'PHOTO_UPLOAD_SUCCESS':
@@ -465,9 +487,32 @@ export function WoofProvider({ children }) {
   }
  }, [state.selectedWalker, state.authToken]);
 
+ const payBooking = useCallback(async (bookingId, paymentPayload) => {
+  try {
+   const result = await apiPayBooking(bookingId, paymentPayload, state.authToken);
+   dispatch({ type: 'PAY_BOOKING_SUCCESS', payload: result });
+   return result;
+  } catch (error) {
+   dispatch({ type: 'SET_PAYMENT_ERROR', payload: error.message });
+   throw error;
+  }
+ }, [state.authToken]);
+
+ const cancelBooking = useCallback(async (bookingId, walkDateIso) => {
+  dispatch({ type: 'CANCEL_START' });
+  try {
+   const result = await apiCancelBooking(bookingId, walkDateIso, state.authToken);
+   dispatch({ type: 'CANCEL_SUCCESS', payload: result });
+   return result;
+  } catch (error) {
+   dispatch({ type: 'CANCEL_ERROR', payload: error.message });
+   throw error;
+  }
+ }, [state.authToken]);
+
  const value = useMemo(
-  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto }),
-  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto],
+  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking }),
+  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability, createBookingRecord, uploadWalkPhoto, payBooking, cancelBooking],
  );
  return <WoofContext.Provider value={value}>{children}</WoofContext.Provider>;
 }
