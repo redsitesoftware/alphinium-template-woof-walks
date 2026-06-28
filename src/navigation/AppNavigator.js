@@ -6,6 +6,7 @@ import WalkerScreen from '../screens/WalkerScreen';
 import BookingScreen from '../screens/BookingScreen';
 import ReviewScreen from '../screens/ReviewScreen';
 import TrackingScreen from '../screens/TrackingScreen';
+import DogProfileScreen from '../screens/DogProfileScreen';
 import { useWoof } from '../store/woofStore';
 import { colors } from '../theme';
 
@@ -83,6 +84,9 @@ export default function AppNavigator() {
  {state.phase === 'booking' ? <BookingScreen /> : null}
  {state.phase === 'tracking' ? <TrackingScreen /> : null}
  {state.phase === 'review' ? <ReviewScreen /> : null}
+ {state.phase === 'dogProfile' ? (
+ <DogProfileScreen onBack={() => dispatch({ type: 'SET_PHASE', payload: 'home' })} />
+ ) : null}
  {state.phase !== 'login' ? <RuffChatWidget /> : null}
  </View>
  );

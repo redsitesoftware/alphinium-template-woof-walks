@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useReducer } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getWalkers as apiGetWalkers, createWalkerProfile as apiCreateWalkerProfile } from '../services/walkers';
+import { getMyDogs, createDog } from '../services/dogs';
 
 // Static fallback data used when the walkers API is unavailable (dev/demo mode).
 const FALLBACK_WALKERS = [
@@ -114,6 +115,10 @@ const initialState = {
  searchText: '',
  bookingData: { dogName: 'Buddy', breed: 'Cavoodle', size: 'Medium', serviceType: 'Group walk', date: 'Today', time: '7:00 AM', recurring: false, notes: 'Friendly with other dogs and loves park loops.' },
  bookingStep: 0,
+ // Dog profiles
+ dogs: [],
+ dogsLoading: false,
+ dogsError: null,
  // alphinium-payments state — no raw card data ever stored here (PCI compliance)
  paymentStatus: 'idle', // 'idle' | 'processing' | 'success' | 'error' | 'refunded'
  paymentError: null,
@@ -334,6 +339,14 @@ function reducer(state, action) {
  ],
  };
  }
+ case 'LOAD_DOGS_START':
+ return { ...state, dogsLoading: true, dogsError: null };
+ case 'LOAD_DOGS_SUCCESS':
+ return { ...state, dogsLoading: false, dogsError: null, dogs: action.payload };
+ case 'LOAD_DOGS_ERROR':
+ return { ...state, dogsLoading: false, dogsError: action.payload };
+ case 'ADD_DOG':
+ return { ...state, dogs: [...state.dogs, action.payload] };
  default:
  return state;
  }
@@ -371,9 +384,25 @@ export function WoofProvider({ children }) {
   return created;
  }, [dispatch]);
 
+ const loadDogs = useCallback(async () => {
+  dispatch({ type: 'LOAD_DOGS_START' });
+  try {
+   const dogs = await getMyDogs(state.authToken);
+   dispatch({ type: 'LOAD_DOGS_SUCCESS', payload: dogs });
+  } catch (error) {
+   dispatch({ type: 'LOAD_DOGS_ERROR', payload: error.message });
+  }
+ }, [state.authToken]);
+
+ const addDog = useCallback(async (profileData) => {
+  const created = await createDog(profileData, state.authToken);
+  dispatch({ type: 'ADD_DOG', payload: created });
+  return created;
+ }, [state.authToken]);
+
  const value = useMemo(
-  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile }),
-  [state, logout, loadWalkers, createWalkerProfile],
+  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog }),
+  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog],
  );
  return <WoofContext.Provider value={value}>{children}</WoofContext.Provider>;
 }
