@@ -111,7 +111,7 @@ const initialState = {
  isGuest: false,
  selectedWalker: FALLBACK_WALKERS[0],
  compareList: [],
- filters: { available: 'Any', sortBy: 'Distance', priceMax: 'Any', serviceType: 'All' },
+ filters: { available: 'Any', sortBy: 'Distance', priceMax: 'Any', serviceType: 'All', verified: 'Any' },
  searchText: '',
  bookingData: { dogName: 'Buddy', breed: 'Cavoodle', size: 'Medium', serviceType: 'Group walk', date: 'Today', time: '7:00 AM', recurring: false, notes: 'Friendly with other dogs and loves park loops.' },
  bookingStep: 0,
@@ -427,7 +427,8 @@ export function filterWalkers(state) {
  desiredService === 'All' ||
  walker.services.some((service) => service.toLowerCase().includes(desiredService.toLowerCase().replace(' walk', '').replace('-', ' ')));
 
- return matchesSearch && matchesAvailability && matchesPrice && matchesService;
+ const matchesVerified = state.filters.verified === 'Any' || walker.verified === true;
+ return matchesSearch && matchesAvailability && matchesPrice && matchesService && matchesVerified;
  });
 
  const sorted = [...filtered].sort((a, b) => {
