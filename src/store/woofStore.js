@@ -163,6 +163,9 @@ const initialState = {
  gpsAvailable: true,
  photoUploading: false,
  photoUploadError: null,
+ // Walk completion state (populated by completeWalk API — #93)
+ walkSummary: null, // { distanceKm, durationMin, photoCount, mapUrl } | null
+ walkNotes: '',
  chatOpen: false,
  chatInput: '',
  chatMessages: [
@@ -287,8 +290,18 @@ function reducer(state, action) {
  return { ...state, tipPercent: action.payload };
  case 'REFUND_BOOKING':
  return { ...state, paymentStatus: 'refunded', invoice: { ...state.invoice, refundReference: action.payload.refundReference } };
- case 'COMPLETE_WALK':
- return { ...state, trackingProgress: 1.0, phase: 'review' };
+ case 'COMPLETE_WALK': {
+  const notes = action.payload?.notes ?? '';
+  // Derive a demo walkSummary from current tracking state.
+  // In production this is replaced by the response from the completeWalk API (#93).
+  const demoSummary = {
+   distanceKm: parseFloat((state.trackingProgress * 3.2).toFixed(1)),
+   durationMin: Math.round(state.trackingProgress * 30),
+   photoCount: state.walkPhotos.length,
+   mapUrl: null,
+  };
+  return { ...state, trackingProgress: 1.0, phase: 'review', walkNotes: notes, walkSummary: demoSummary };
+ }
  case 'SUBMIT_REVIEW': {
  const { walkerId, rating, text, author } = action.payload;
  const existing = state.reviews[walkerId] || [];

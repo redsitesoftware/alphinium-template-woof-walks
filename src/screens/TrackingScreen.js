@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { getRouteHistory, getWalkPhotos, getWalkPosition, ROUTE_TOTAL_WAYPOINTS, subscribeWalkTracking, TRACKING_POLL_INTERVAL_MS } from '../services/alphinium';
 import { triggerWalkerPayout } from '../services/payments';
 import { WOOF_IMAGES } from '../media';
@@ -76,6 +76,7 @@ export default function TrackingScreen() {
   const [payoutLoading, setPayoutLoading] = useState(false);
   const [payoutSent, setPayoutSent] = useState(false);
   const [payoutError, setPayoutError] = useState(null);
+  const [walkNotes, setWalkNotes] = useState('');
 
   const pollGPS = useCallback(async () => {
     try {
@@ -312,9 +313,24 @@ export default function TrackingScreen() {
           <Text style={styles.reviewButtonText}>⭐ Leave a Review</Text>
         </Pressable>
       ) : (
-        <Pressable style={styles.completeButton} onPress={() => dispatch({ type: 'COMPLETE_WALK' })}>
-          <Text style={styles.completeButtonText}>Simulate Walk Complete</Text>
-        </Pressable>
+        <>
+          <View style={styles.notesSection}>
+            <Text style={styles.notesLabel}>📝 Walk notes (optional)</Text>
+            <TextInput
+              value={walkNotes}
+              onChangeText={setWalkNotes}
+              placeholder="Add a note for the owner before completing…"
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={3}
+              style={styles.notesInput}
+              textAlignVertical="top"
+            />
+          </View>
+          <Pressable style={styles.completeButton} onPress={() => dispatch({ type: 'COMPLETE_WALK', payload: { notes: walkNotes } })}>
+            <Text style={styles.completeButtonText}>Simulate Walk Complete</Text>
+          </Pressable>
+        </>
       )}
 
       <View style={styles.callout}>
@@ -567,5 +583,28 @@ const styles = StyleSheet.create({
  completeButtonText: {
  color: colors.textMuted,
  fontWeight: '700',
+ },
+ notesSection: {
+ backgroundColor: colors.card,
+ borderRadius: 18,
+ padding: 16,
+ borderWidth: 1,
+ borderColor: colors.border,
+ gap: 10,
+ },
+ notesLabel: {
+ color: colors.text,
+ fontWeight: '800',
+ fontSize: 15,
+ },
+ notesInput: {
+ borderWidth: 1,
+ borderColor: colors.border,
+ borderRadius: 12,
+ padding: 12,
+ minHeight: 80,
+ color: colors.text,
+ fontSize: 14,
+ lineHeight: 20,
  },
 });

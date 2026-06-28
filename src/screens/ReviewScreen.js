@@ -17,6 +17,7 @@ if (Platform.OS !== 'web') {
 export default function ReviewScreen() {
   const { state, dispatch, submitReview } = useWoof();
   const walker = state.selectedWalker;
+  const walkSummary = state.walkSummary ?? null;
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
 
@@ -63,6 +64,36 @@ export default function ReviewScreen() {
           <Text style={styles.walkerMeta}>{walker.suburb} · ⭐ {walker.rating.toFixed(1)}</Text>
         </View>
       </View>
+
+      {walkSummary && (
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryTitle}>📊 Walk Report</Text>
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{walkSummary.distanceKm} km</Text>
+              <Text style={styles.summaryLabel}>Distance</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{walkSummary.durationMin} min</Text>
+              <Text style={styles.summaryLabel}>Duration</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{walkSummary.photoCount}</Text>
+              <Text style={styles.summaryLabel}>Photos</Text>
+            </View>
+          </View>
+          {walkSummary.mapUrl && (
+            <Pressable
+              onPress={() => Alert.alert('Route Map', walkSummary.mapUrl)}
+              style={styles.mapLink}
+            >
+              <Text style={styles.mapLinkText}>🗺️ View Route Map</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
 
       {state.walkPhotos.length > 0 && (
         <View style={styles.section}>
@@ -196,6 +227,52 @@ const styles = StyleSheet.create({
   walkerMeta: {
     color: colors.textMuted,
     fontWeight: '700',
+  },
+  summaryCard: {
+    backgroundColor: '#DCFCE7',
+    borderRadius: 24,
+    padding: 18,
+    gap: 14,
+  },
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: colors.text,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  summaryItem: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  summaryValue: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: colors.text,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: '700',
+  },
+  summaryDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#BBF7D0',
+  },
+  mapLink: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  mapLinkText: {
+    color: '#166534',
+    fontWeight: '800',
+    fontSize: 14,
   },
   photoAlbum: {
     gap: 12,
