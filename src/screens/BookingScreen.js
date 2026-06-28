@@ -28,6 +28,25 @@ const TIP_OPTIONS = [
   { label: 'No tip', value: 0 },
 ];
 
+// ─── Date strip helpers ─────────────────────────────────────────────────────
+
+function buildDateStrip() {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const result = [];
+  const now = new Date();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() + i);
+    const label = i === 0 ? 'Today' : `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+    const iso = d.toISOString().slice(0, 10); // YYYY-MM-DD
+    result.push({ label, iso });
+  }
+  return result;
+}
+
+const DATE_STRIP = buildDateStrip();
+
 // ─── Shared sub-components ───────────────────────────────────────────────────
 
 function PillSelector({ options, value, onChange }) {
@@ -428,9 +447,10 @@ function InvoiceStep({ invoice, dispatch, walker }) {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function BookingScreen() {
-  const { state, dispatch } = useWoof();
+  const { state, dispatch, loadAvailability } = useWoof();
   const walker = state.selectedWalker;
-  const { bookingData, bookingStep, paymentStatus, paymentError, savedCards, selectedSavedCardId, invoice, tipPercent, dogs } = state;
+  const [selectedDate, setSelectedDate] = React.useState(DATE_STRIP[0]);
+  const { bookingData, bookingStep, paymentStatus, paymentError, savedCards, selectedSavedCardId, invoice, tipPercent, dogs, availabilitySlots, availabilityLoading } = state;
 
   useEffect(() => {
     // Pre-fetch saved cards when entering the booking flow
@@ -504,8 +524,56 @@ export default function BookingScreen() {
           <Text style={styles.fieldLabel}>Service type</Text>
           <PillSelector options={services} value={bookingData.serviceType} onChange={(serviceType) => dispatch({ type: 'SET_BOOKING_DATA', payload: { serviceType } })} />
 
-          <Field label="Date" value={bookingData.date} onChangeText={(date) => dispatch({ type: 'SET_BOOKING_DATA', payload: { date } })} placeholder="Today" />
-          <Field label="Time" value={bookingData.time} onChangeText={(time) => dispatch({ type: 'SET_BOOKING_DATA', payload: { time } })} placeholder="7:00 AM" />
+          {/* Date + time slot picker (falls back to free-text if slots unavailable) */}
+          <Text style={styles.fieldLabel}>Date</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateStrip}>
+            {DATE_STRIP.map((day) => {
+              const active = selectedDate.iso === day.iso;
+              return (
+                <Pressable
+                  key={day.iso}
+                  style={[styles.datePill, active ? styles.datePillActive : null]}
+                  onPress={() => {
+                    setSelectedDate(day);
+                    dispatch({ type: 'SET_BOOKING_DATA', payload: { date: day.label } });
+                    loadAvailability(walker.id, day.iso);
+                  }}
+                >
+                  <Text style={[styles.datePillText, active ? styles.datePillTextActive : null]}>{day.label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <Text style={styles.fieldLabel}>Time</Text>
+          {availabilityLoading ? (
+            <ActivityIndicator color={colors.primary} style={{ marginVertical: 8 }} />
+          ) : availabilitySlots.length > 0 ? (
+            <View style={styles.pillsWrap}>
+              {availabilitySlots.map((slot) => {
+                const label = typeof slot === 'string' ? slot : slot.time;
+                const active = bookingData.time === label;
+                return (
+                  <Pressable
+                    key={label}
+                    style={[styles.pill, active ? styles.pillActive : null]}
+                    onPress={() => dispatch({ type: 'SET_BOOKING_DATA', payload: { time: label } })}
+                  >
+                    <Text style={[styles.pillText, active ? styles.pillTextActive : null]}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : availabilitySlots !== null && !availabilityLoading && selectedDate ? (
+            /* Slots fetched but empty — show message + free-text fallback */
+            <>
+              <Text style={styles.noSlotsText}>No slots available — choose another date</Text>
+              <Field label="" value={bookingData.time} onChangeText={(time) => dispatch({ type: 'SET_BOOKING_DATA', payload: { time } })} placeholder="Enter time (e.g. 7:00 AM)" />
+            </>
+          ) : (
+            /* API unavailable / not yet fetched — free-text fallback */
+            <Field label="" value={bookingData.time} onChangeText={(time) => dispatch({ type: 'SET_BOOKING_DATA', payload: { time } })} placeholder="7:00 AM" />
+          )}
 
           <Text style={styles.fieldLabel}>Recurring?</Text>
           <PillSelector options={recurringOptions} value={bookingData.recurring} onChange={(recurring) => dispatch({ type: 'SET_BOOKING_DATA', payload: { recurring } })} />
@@ -911,5 +979,36 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '700',
     fontSize: 14,
+  },
+  dateStrip: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingRight: 16,
+  },
+  datePill: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  datePillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  datePillText: {
+    color: colors.text,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  datePillTextActive: {
+    color: '#FFFFFF',
+  },
+  noSlotsText: {
+    color: colors.textMuted,
+    fontWeight: '600',
+    fontStyle: 'italic',
+    marginVertical: 4,
   },
 });

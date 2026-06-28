@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useReducer } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getWalkers as apiGetWalkers, createWalkerProfile as apiCreateWalkerProfile } from '../services/walkers';
+import { getWalkers as apiGetWalkers, createWalkerProfile as apiCreateWalkerProfile, getWalkerAvailability } from '../services/walkers';
 import { getMyDogs, createDog } from '../services/dogs';
 
 // Static fallback data used when the walkers API is unavailable (dev/demo mode).
@@ -318,6 +318,8 @@ function reducer(state, action) {
    authUser: null,
    isGuest: false,
    bookingStep: 0,
+  availabilitySlots: [],
+  availabilityLoading: false,
    chatOpen: false,
    chatInput: '',
   };
@@ -347,6 +349,12 @@ function reducer(state, action) {
  return { ...state, dogsLoading: false, dogsError: action.payload };
  case 'ADD_DOG':
  return { ...state, dogs: [...state.dogs, action.payload] };
+ case 'LOAD_AVAILABILITY_START':
+ return { ...state, availabilityLoading: true, availabilitySlots: [] };
+ case 'LOAD_AVAILABILITY_SUCCESS':
+ return { ...state, availabilityLoading: false, availabilitySlots: action.payload };
+ case 'LOAD_AVAILABILITY_ERROR':
+ return { ...state, availabilityLoading: false, availabilitySlots: [] };
  default:
  return state;
  }
@@ -400,9 +408,19 @@ export function WoofProvider({ children }) {
   return created;
  }, [state.authToken]);
 
+ const loadAvailability = useCallback(async (walkerId, date) => {
+  dispatch({ type: 'LOAD_AVAILABILITY_START' });
+  try {
+   const slots = await getWalkerAvailability(walkerId, date, state.authToken ?? undefined);
+   dispatch({ type: 'LOAD_AVAILABILITY_SUCCESS', payload: Array.isArray(slots) ? slots : [] });
+  } catch {
+   dispatch({ type: 'LOAD_AVAILABILITY_ERROR' });
+  }
+ }, [state.authToken]);
+
  const value = useMemo(
-  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog }),
-  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog],
+  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability }),
+  [state, logout, loadWalkers, createWalkerProfile, loadDogs, addDog, loadAvailability],
  );
  return <WoofContext.Provider value={value}>{children}</WoofContext.Provider>;
 }
