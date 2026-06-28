@@ -244,3 +244,47 @@ export async function blockDates(dates, authToken) {
 
   return response.json();
 }
+
+/**
+ * Fetch reviews for a specific walker.
+ *
+ * Returns an empty array as fallback when the API is unavailable —
+ * the store's static FALLBACK_WALKERS already carry review data for demo use.
+ *
+ * @param {string} walkerId - Walker ID to fetch reviews for
+ * @param {string} [authToken] - Optional Bearer token
+ * @returns {Promise<Array<{
+ *   review_id: string,
+ *   rating: number,
+ *   text: string,
+ *   author: string,
+ *   date: string,
+ * }>>}
+ */
+export async function getWalkerReviews(walkerId, authToken) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  if (WOOF_API_BASE_URL) {
+    try {
+      const response = await fetch(
+        `${WOOF_API_BASE_URL}/api/walkers/${encodeURIComponent(walkerId)}/reviews`,
+        { method: 'GET', headers }
+      );
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || `Failed to fetch walker reviews (${response.status})`);
+      }
+
+      return response.json();
+    } catch (err) {
+      // fall through to simulation
+    }
+  }
+
+  // Simulation fallback — store merges static reviews from FALLBACK_WALKERS
+  return [];
+}

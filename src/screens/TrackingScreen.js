@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getRouteHistory, getWalkPhotos, getWalkPosition, ROUTE_TOTAL_WAYPOINTS, TRACKING_POLL_INTERVAL_MS } from '../services/alphinium';
 import { WOOF_IMAGES } from '../media';
-import { scheduleWalkNotification, NOTIFICATION_TYPES } from '../services/notifications';
+import { scheduleWalkNotification, scheduleReviewPrompt, NOTIFICATION_TYPES } from '../services/notifications';
 import { useWoof } from '../store/woofStore';
 import { colors } from '../theme';
 
@@ -93,6 +93,7 @@ export default function TrackingScreen() {
   const notifiedStart = useRef(false);
  const notifiedPhoto = useRef(false);
  const notifiedEnd = useRef(false);
+ const reviewPromptScheduled = useRef(false);
 
  // Request permissions and fire walk-started notification on mount.
  useEffect(() => {
@@ -123,6 +124,15 @@ export default function TrackingScreen() {
      scheduleWalkNotification(NOTIFICATION_TYPES.WALK_ENDED, walkerName);
    }
  }, [isComplete, walkerName]);
+
+ // Schedule review prompt once when walk completes (2h delay in prod, immediate in dev).
+ useEffect(() => {
+   if (!reviewPromptScheduled.current && isComplete) {
+     reviewPromptScheduled.current = true;
+     const delay = typeof __DEV__ !== 'undefined' && __DEV__ ? 0 : 2 * 60 * 60 * 1000;
+     scheduleReviewPrompt(state.selectedWalker?.name ?? 'your walker', delay);
+   }
+ }, [isComplete, state.selectedWalker]);
 
  const deniedLocation = state.permissions.location === 'denied';
  const deniedNotifications = state.permissions.notifications === 'denied';

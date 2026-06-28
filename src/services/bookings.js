@@ -219,3 +219,63 @@ export async function cancelBooking(bookingId, walkDateIso, authToken) {
     refund_type,
   };
 }
+
+/**
+ * Submit a review for a completed booking.
+ *
+ * Falls back to a synthetic simulation result when WOOF_API_BASE_URL is not
+ * configured or the request fails, so the demo works without a live API.
+ *
+ * @param {string} bookingId - The completed booking being reviewed
+ * @param {{
+ *   rating: number,
+ *   text: string,
+ *   reviewer_type: 'owner' | 'walker',
+ *   walker_id?: string,
+ * }} reviewPayload
+ * @param {string} authToken - Bearer token (required)
+ * @returns {Promise<{
+ *   review_id: string,
+ *   walker_id: string,
+ *   rating: number,
+ *   text: string,
+ *   author: string,
+ *   date: string,
+ * }>}
+ */
+export async function submitReview(bookingId, reviewPayload, authToken) {
+  if (WOOF_API_BASE_URL) {
+    try {
+      const response = await fetch(
+        `${WOOF_API_BASE_URL}/api/bookings/${encodeURIComponent(bookingId)}/review`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify(reviewPayload),
+        }
+      );
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || 'Submit review failed');
+      }
+
+      return response.json();
+    } catch (err) {
+      // fall through to simulation
+    }
+  }
+
+  // Simulation fallback
+  return {
+    review_id: `rev_${Date.now()}`,
+    walker_id: reviewPayload.walker_id,
+    rating: reviewPayload.rating,
+    text: reviewPayload.text,
+    author: 'You',
+    date: 'Just now',
+  };
+}
