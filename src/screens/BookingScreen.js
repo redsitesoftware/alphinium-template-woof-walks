@@ -100,7 +100,7 @@ function ErrorBanner({ message }) {
 
 // ─── Step 2: Payment ─────────────────────────────────────────────────────────
 
-function PaymentStep({ walker, bookingData, dispatch, paymentStatus, paymentError, savedCards, selectedSavedCardId }) {
+function PaymentStep({ walker, bookingData, dispatch, paymentStatus, paymentError, savedCards, selectedSavedCardId, bookingId, bookingCreating, bookingCreateError, createBookingRecord }) {
   const [useNewCard, setUseNewCard] = useState(savedCards.length === 0);
   // Local card input state — raw card fields live here only, never dispatched to store
   const [cardNumber, setCardNumber] = useState('');
@@ -114,13 +114,20 @@ function PaymentStep({ walker, bookingData, dispatch, paymentStatus, paymentErro
   async function handlePay() {
     dispatch({ type: 'SET_PAYMENT_STATUS', payload: 'processing' });
     try {
+      // Create booking record before payment if not already done
+      let resolvedBookingId = bookingId;
+      if (!resolvedBookingId) {
+        const bookingResult = await createBookingRecord();
+        resolvedBookingId = bookingResult.booking_id;
+      }
+
       let result;
       if (useNewCard) {
         // Tokenise locally — raw numbers never touch the store
         const { cardToken } = await tokeniseCard({ number: cardNumber, expiry, cvv });
-        result = await checkout({ bookingDetails: bookingData, amountCents, cardToken });
+        result = await checkout({ bookingDetails: bookingData, amountCents, cardToken, bookingReference: resolvedBookingId });
       } else {
-        result = await checkout({ bookingDetails: bookingData, amountCents, savedCardId: selectedSavedCardId });
+        result = await checkout({ bookingDetails: bookingData, amountCents, savedCardId: selectedSavedCardId, bookingReference: resolvedBookingId });
       }
 
       // Save masked card list update
@@ -151,11 +158,18 @@ function PaymentStep({ walker, bookingData, dispatch, paymentStatus, paymentErro
         },
       });
     } catch (err) {
+      // If booking creation failed, dispatch shows its own error via bookingCreateError.
+      // Reset payment status to idle so the button re-enables.
+      dispatch({ type: 'SET_PAYMENT_STATUS', payload: 'idle' });
+      if (!resolvedBookingId) {
+        // booking creation error — already stored in bookingCreateError via reducer
+        return;
+      }
       dispatch({ type: 'SET_PAYMENT_ERROR', payload: err.message });
     }
   }
 
-  const isProcessing = paymentStatus === 'processing';
+  const isProcessing = paymentStatus === 'processing' || bookingCreating;
 
   return (
     <View style={styles.section}>
@@ -231,6 +245,7 @@ function PaymentStep({ walker, bookingData, dispatch, paymentStatus, paymentErro
         </View>
       )}
 
+      <ErrorBanner message={bookingCreateError} />
       <ErrorBanner message={paymentError} />
 
       <Pressable
@@ -238,7 +253,12 @@ function PaymentStep({ walker, bookingData, dispatch, paymentStatus, paymentErro
         onPress={handlePay}
         disabled={isProcessing || (!useNewCard && !selectedSavedCardId)}
       >
-        {isProcessing ? (
+        {bookingCreating ? (
+          <>
+            <ActivityIndicator color="#FFFFFF" />
+            <Text style={[styles.primaryButtonText, { marginLeft: 8 }]}>Creating booking...</Text>
+          </>
+        ) : isProcessing ? (
           <ActivityIndicator color="#FFFFFF" />
         ) : (
           <Text style={styles.primaryButtonText}>Pay & Book</Text>
@@ -447,10 +467,10 @@ function InvoiceStep({ invoice, dispatch, walker }) {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function BookingScreen() {
-  const { state, dispatch, loadAvailability } = useWoof();
+  const { state, dispatch, loadAvailability, createBookingRecord } = useWoof();
   const walker = state.selectedWalker;
   const [selectedDate, setSelectedDate] = React.useState(DATE_STRIP[0]);
-  const { bookingData, bookingStep, paymentStatus, paymentError, savedCards, selectedSavedCardId, invoice, tipPercent, dogs, availabilitySlots, availabilityLoading } = state;
+  const { bookingData, bookingStep, paymentStatus, paymentError, savedCards, selectedSavedCardId, invoice, tipPercent, dogs, availabilitySlots, availabilityLoading, bookingId, bookingCreating, bookingCreateError } = state;
 
   useEffect(() => {
     // Pre-fetch saved cards when entering the booking flow
@@ -625,6 +645,10 @@ export default function BookingScreen() {
           paymentError={paymentError}
           savedCards={savedCards}
           selectedSavedCardId={selectedSavedCardId}
+          bookingId={bookingId}
+          bookingCreating={bookingCreating}
+          bookingCreateError={bookingCreateError}
+          createBookingRecord={createBookingRecord}
         />
       )}
 
