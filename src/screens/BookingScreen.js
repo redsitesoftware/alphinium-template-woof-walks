@@ -161,7 +161,7 @@ function PaymentStep({ walker, bookingData, dispatch, paymentStatus, paymentErro
       // If booking creation failed, dispatch shows its own error via bookingCreateError.
       // Reset payment status to idle so the button re-enables.
       dispatch({ type: 'SET_PAYMENT_STATUS', payload: 'idle' });
-      if (!bookingId) {
+      if (!resolvedBookingId) {
         // booking creation error — already stored in bookingCreateError via reducer
         return;
       }
