@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { filterWalkers, getCompareWalkers, useWoof } from '../store/woofStore';
 import { getWalkerPhoto, WOOF_IMAGES } from '../media';
@@ -82,10 +82,14 @@ function WalkerCard({ walker, onOpen, onBook, onCompare, isCompared, compareDisa
 }
 
 export default function HomeScreen() {
- const { state, dispatch } = useWoof();
+ const { state, dispatch, loadWalkers } = useWoof();
  const walkers = filterWalkers(state);
  const compareWalkers = getCompareWalkers(state);
  const [modalVisible, setModalVisible] = useState(false);
+
+ useEffect(() => {
+  loadWalkers();
+ }, [loadWalkers]);
 
  return (
  <View style={styles.screenWrapper}>
