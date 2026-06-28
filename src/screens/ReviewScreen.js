@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { getWalkerPhoto } from '../media';
 import { useWoof } from '../store/woofStore';
 import { colors } from '../theme';
@@ -45,6 +45,31 @@ export default function ReviewScreen() {
           <Text style={styles.walkerMeta}>{walker.suburb} · ⭐ {walker.rating.toFixed(1)}</Text>
         </View>
       </View>
+
+      {state.walkPhotos.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📷 Walk Photos</Text>
+          <FlatList
+            data={state.walkPhotos}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.photoAlbum}
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() => Alert.alert('Photo', item.caption)}
+                style={styles.photoThumbContainer}
+              >
+                <Image source={{ uri: item.uri }} style={styles.photoThumb} />
+                <Text style={styles.photoThumbCaption} numberOfLines={2}>{item.caption}</Text>
+                <Text style={styles.photoThumbTime}>
+                  {item.date || new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </Pressable>
+            )}
+          />
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Your Rating</Text>
@@ -153,6 +178,32 @@ const styles = StyleSheet.create({
   walkerMeta: {
     color: colors.textMuted,
     fontWeight: '700',
+  },
+  photoAlbum: {
+    gap: 12,
+    paddingVertical: 4,
+  },
+  photoThumbContainer: {
+    width: 100,
+    alignItems: 'center',
+    gap: 4,
+  },
+  photoThumb: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    backgroundColor: colors.border,
+  },
+  photoThumbCaption: {
+    fontSize: 11,
+    color: colors.text,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  photoThumbTime: {
+    fontSize: 10,
+    color: colors.textMuted,
+    fontWeight: '600',
   },
   section: {
     backgroundColor: colors.card,

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getRouteHistory, getWalkPhotos, getWalkPosition, ROUTE_TOTAL_WAYPOINTS, TRACKING_POLL_INTERVAL_MS } from '../services/alphinium';
 import { WOOF_IMAGES } from '../media';
 import { scheduleWalkNotification, NOTIFICATION_TYPES } from '../services/notifications';
@@ -66,7 +66,7 @@ async function requestPermissions(dispatch) {
 }
 
 export default function TrackingScreen() {
- const { state, dispatch } = useWoof();
+  const { state, dispatch, uploadWalkPhoto } = useWoof();
  const walker = state.selectedWalker;
   const walkerName = walker?.name || 'Jessica Park';
   const isComplete = state.trackingProgress >= 1.0;
@@ -225,7 +225,21 @@ export default function TrackingScreen() {
         </View>
       </View>
 
-      {isComplete ? (
+      {/* Walker sends a photo update (demo: simulates walker device) */}
+      <Pressable
+        style={[styles.sendPhotoButton, state.photoUploading && styles.sendPhotoButtonDisabled]}
+        onPress={() => uploadWalkPhoto(walkId, 'Buddy is having fun! 🐾')}
+        disabled={state.photoUploading}
+      >
+        {state.photoUploading ? (
+          <ActivityIndicator color={colors.info} size="small" />
+        ) : (
+          <Text style={styles.sendPhotoButtonText}>📸 Send Photo Update</Text>
+        )}
+      </Pressable>
+      {state.photoUploadError ? (
+        <Text style={styles.sendPhotoError}>⚠️ {state.photoUploadError}</Text>
+      ) : null}
         <Pressable style={styles.reviewButton} onPress={() => dispatch({ type: 'SET_PHASE', payload: 'review' })}>
           <Text style={styles.reviewButtonText}>⭐ Leave a Review</Text>
         </Pressable>
@@ -373,6 +387,30 @@ const styles = StyleSheet.create({
  fontSize: 12,
  marginTop: 4,
  opacity: 0.8,
+ },
+ sendPhotoButton: {
+  borderWidth: 2,
+  borderColor: colors.info,
+  borderRadius: 14,
+  paddingVertical: 12,
+  paddingHorizontal: 20,
+  alignItems: 'center',
+  justifyContent: 'center',
+  minHeight: 46,
+ },
+ sendPhotoButtonDisabled: {
+  opacity: 0.5,
+ },
+ sendPhotoButtonText: {
+  color: colors.info,
+  fontWeight: '800',
+  fontSize: 15,
+ },
+ sendPhotoError: {
+  color: '#DC2626',
+  fontWeight: '700',
+  fontSize: 13,
+  textAlign: 'center',
  },
  callout: {
  backgroundColor: '#DBEAFE',
