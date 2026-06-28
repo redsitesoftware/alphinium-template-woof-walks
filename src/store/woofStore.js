@@ -1,7 +1,9 @@
 import React, { createContext, useCallback, useContext, useMemo, useReducer } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getWalkers as apiGetWalkers, createWalkerProfile as apiCreateWalkerProfile } from '../services/walkers';
 
-const WALKERS = [
+// Static fallback data used when the walkers API is unavailable (dev/demo mode).
+const FALLBACK_WALKERS = [
  { id: 'w1', name: 'Jessica Park', emoji: '‍', suburb: 'Surry Hills', distance: 0.4, rating: 4.9, reviewCount: 287, pricePerWalk: 28, pricePer30: 18, available: true, nextSlot: 'Today 7am', dogs: 'Up to 3', badge: 'Top Rated', badgeColor: '#F59E0B', services: ['Solo walk', 'Group walk', 'Drop-in visit'], bio: 'Professional dog walker for 5 years. First aid certified. GPS tracked every walk.', tags: ['GPS tracking', 'Insured', 'Small dogs', 'Large dogs'], ratingBreakdown: { reliability: 4.9, punctuality: 4.8, communication: 5.0, care: 4.9 } },
  { id: 'w2', name: 'Tom Bradley', emoji: '��‍', suburb: 'Newtown', distance: 1.1, rating: 4.8, reviewCount: 194, pricePerWalk: 25, pricePer30: 16, available: true, nextSlot: 'Today 8am', dogs: 'Up to 4', badge: 'Popular', badgeColor: '#6366F1', services: ['Group walk', 'Solo walk'], bio: 'Former vet nurse. Great with anxious and reactive dogs.', tags: ['Reactive dogs ok', 'Vet background', 'Large groups'], ratingBreakdown: { reliability: 4.8, punctuality: 4.7, communication: 4.9, care: 5.0 } },
  { id: 'w3', name: 'Mei Lin', emoji: '', suburb: 'Glebe', distance: 1.4, rating: 5.0, reviewCount: 76, pricePerWalk: 35, pricePer30: 22, available: false, nextSlot: 'Tomorrow 7am', dogs: 'Solo only', badge: 'Premium', badgeColor: '#8B5CF6', services: ['Solo walk only'], bio: 'Solo walks only — your dog gets 100% of my attention.', tags: ['Solo only', 'Premium', 'Photo updates'], ratingBreakdown: { reliability: 5.0, punctuality: 5.0, communication: 5.0, care: 5.0 } },
@@ -99,12 +101,14 @@ const quickReplies = {
 };
 
 const initialState = {
- walkers: WALKERS,
+ walkers: FALLBACK_WALKERS,
+ walkersLoading: false,
+ walkersError: null,
  phase: 'login',
  authToken: null,
  authUser: null,
  isGuest: false,
- selectedWalker: WALKERS[0],
+ selectedWalker: FALLBACK_WALKERS[0],
  compareList: [],
  filters: { available: 'Any', sortBy: 'Distance', priceMax: 'Any', serviceType: 'All' },
  searchText: '',
@@ -199,6 +203,24 @@ function reducer(state, action) {
  };
  case 'SET_SEARCH':
  return { ...state, searchText: action.payload };
+ case 'LOAD_WALKERS_START':
+ return { ...state, walkersLoading: true, walkersError: null };
+ case 'LOAD_WALKERS_SUCCESS':
+ return {
+ ...state,
+ walkersLoading: false,
+ walkersError: null,
+ walkers: action.payload,
+ // Keep selectedWalker in sync: replace with live version if found, else keep existing
+ selectedWalker: action.payload.find((w) => w.id === state.selectedWalker?.id) ?? state.selectedWalker,
+ };
+ case 'LOAD_WALKERS_ERROR':
+ return { ...state, walkersLoading: false, walkersError: action.payload };
+ case 'CREATE_WALKER_PROFILE_SUCCESS':
+ return {
+ ...state,
+ walkers: [...state.walkers, action.payload],
+ };
  case 'TOGGLE_COMPARE': {
  const id = action.payload;
  const list = state.compareList;
@@ -321,6 +343,7 @@ const WoofContext = createContext(null);
 
 export function WoofProvider({ children }) {
  const [state, dispatch] = useReducer(reducer, initialState);
+
  const logout = useCallback(async () => {
   try {
    await AsyncStorage.removeItem(JWT_KEY);
@@ -328,7 +351,30 @@ export function WoofProvider({ children }) {
    dispatch({ type: 'LOGOUT' });
   }
  }, [dispatch]);
- const value = useMemo(() => ({ state, dispatch, logout }), [state, logout]);
+
+ const loadWalkers = useCallback(async () => {
+  dispatch({ type: 'LOAD_WALKERS_START' });
+  const walkers = await apiGetWalkers();
+  if (walkers) {
+   dispatch({ type: 'LOAD_WALKERS_SUCCESS', payload: walkers });
+  } else {
+   // API unavailable — keep fallback data, clear loading flag without error
+   dispatch({ type: 'LOAD_WALKERS_ERROR', payload: null });
+  }
+ }, [dispatch]);
+
+ const createWalkerProfile = useCallback(async (profileData) => {
+  const created = await apiCreateWalkerProfile(profileData);
+  if (created) {
+   dispatch({ type: 'CREATE_WALKER_PROFILE_SUCCESS', payload: created });
+  }
+  return created;
+ }, [dispatch]);
+
+ const value = useMemo(
+  () => ({ state, dispatch, logout, loadWalkers, createWalkerProfile }),
+  [state, logout, loadWalkers, createWalkerProfile],
+ );
  return <WoofContext.Provider value={value}>{children}</WoofContext.Provider>;
 }
 
