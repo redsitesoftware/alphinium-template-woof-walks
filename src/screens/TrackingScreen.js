@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useRef } from 'react';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getRouteHistory, getWalkPhotos, getWalkPosition, ROUTE_TOTAL_WAYPOINTS, TRACKING_POLL_INTERVAL_MS } from '../services/alphinium';
+import { triggerWalkerPayout } from '../services/payments';
 import { WOOF_IMAGES } from '../media';
 import { scheduleWalkNotification, NOTIFICATION_TYPES } from '../services/notifications';
 import { useWoof } from '../store/woofStore';
@@ -72,6 +73,9 @@ export default function TrackingScreen() {
   const isComplete = state.trackingProgress >= 1.0;
   const walkId = state.bookingData?.walkId || 'demo-walk-1';
   const intervalRef = useRef(null);
+  const [payoutLoading, setPayoutLoading] = useState(false);
+  const [payoutSent, setPayoutSent] = useState(false);
+  const [payoutError, setPayoutError] = useState(null);
 
   const pollGPS = useCallback(async () => {
     try {
@@ -208,7 +212,46 @@ export default function TrackingScreen() {
         )}
       </View>
 
-      {/* Photo banner — live updates from walker's feed */}
+      {/* Walk-complete payout trigger — visible only when walk is finished */}
+      {isComplete && (
+        <View style={styles.payoutSection}>
+          {!payoutSent ? (
+            <Pressable
+              style={[styles.payoutButton, payoutLoading && styles.payoutButtonDisabled]}
+              disabled={payoutLoading}
+              onPress={async () => {
+                setPayoutLoading(true);
+                setPayoutError(null);
+                try {
+                  await triggerWalkerPayout({
+                    bookingReference: state.invoice?.bookingReference,
+                    walkerId: state.selectedWalker?.id,
+                  });
+                  setPayoutSent(true);
+                } catch (err) {
+                  setPayoutError(err.message);
+                } finally {
+                  setPayoutLoading(false);
+                }
+              }}
+            >
+              {payoutLoading ? (
+                <>
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text style={[styles.payoutButtonText, { marginLeft: 8 }]}>Sending payout…</Text>
+                </>
+              ) : (
+                <Text style={styles.payoutButtonText}>✅ Mark Walk Complete</Text>
+              )}
+            </Pressable>
+          ) : (
+            <View style={styles.payoutSuccess}>
+              <Text style={styles.payoutSuccessText}>✅ Payout sent to walker</Text>
+            </View>
+          )}
+          {payoutError && <Text style={styles.payoutError}>⚠️ {payoutError}</Text>}
+        </View>
+      )}
       <View style={styles.photoBanner}>
         <Image
           source={{ uri: latestPhoto?.uri || WOOF_IMAGES.trackingPhoto }}
@@ -351,6 +394,43 @@ const styles = StyleSheet.create({
  backgroundColor: '#FEF3C7',
  borderRadius: 18,
  overflow: 'hidden',
+ },
+ payoutSection: {
+  gap: 8,
+ },
+ payoutButton: {
+  backgroundColor: colors.primary,
+  borderRadius: 14,
+  paddingVertical: 14,
+  paddingHorizontal: 20,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+ },
+ payoutButtonDisabled: {
+  opacity: 0.6,
+ },
+ payoutButtonText: {
+  color: '#FFFFFF',
+  fontWeight: '900',
+  fontSize: 15,
+ },
+ payoutSuccess: {
+  backgroundColor: '#DCFCE7',
+  borderRadius: 14,
+  paddingVertical: 14,
+  alignItems: 'center',
+ },
+ payoutSuccessText: {
+  color: '#166534',
+  fontWeight: '800',
+  fontSize: 15,
+ },
+ payoutError: {
+  color: '#DC2626',
+  fontWeight: '700',
+  fontSize: 13,
+  textAlign: 'center',
  },
  photoImage: {
  width: '100%',
