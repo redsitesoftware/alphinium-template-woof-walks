@@ -240,6 +240,8 @@ export default function TrackingScreen() {
       {state.photoUploadError ? (
         <Text style={styles.sendPhotoError}>⚠️ {state.photoUploadError}</Text>
       ) : null}
+
+      {isComplete ? (
         <Pressable style={styles.reviewButton} onPress={() => dispatch({ type: 'SET_PHASE', payload: 'review' })}>
           <Text style={styles.reviewButtonText}>⭐ Leave a Review</Text>
         </Pressable>
