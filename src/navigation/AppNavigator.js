@@ -20,10 +20,6 @@ const QUICK_CHIPS = [
 function RuffChatWidget() {
  const { state, dispatch } = useWoof();
 
- const handleLogin = useCallback(({ guest, token, user }) => {
- dispatch({ type: 'COMPLETE_LOGIN', guest, token, user });
- }, [dispatch]);
-
  return (
  <View pointerEvents="box-none" style={styles.chatLayer}>
  {state.chatOpen ? (
@@ -75,6 +71,10 @@ function RuffChatWidget() {
 
 export default function AppNavigator() {
  const { state, dispatch } = useWoof();
+
+ const handleLogin = useCallback(({ guest, token, user }) => {
+  dispatch({ type: 'COMPLETE_LOGIN', guest, token, user });
+ }, [dispatch]);
 
  return (
  <View style={styles.container}>
