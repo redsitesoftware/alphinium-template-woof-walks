@@ -59,20 +59,28 @@ export default function WalkerScreen() {
  </View>
 
  <View style={styles.section}>
- <Text style={styles.sectionTitle}>Rating breakdown</Text>
- {Object.entries(walker.ratingBreakdown).map(([category, score]) => (
-  <View key={category} style={styles.breakdownRow}>
-   <Text style={styles.breakdownLabel}>{category.charAt(0).toUpperCase() + category.slice(1)}</Text>
-   <View style={styles.breakdownBarTrack}>
-    <View style={[styles.breakdownBarFill, { width: `${(score / 5) * 100}%` }]} />
-   </View>
-   <Text style={styles.breakdownScore}>★ {score.toFixed(1)}</Text>
-  </View>
- ))}
+ <Text style={styles.sectionTitle}>💰 Earnings &amp; Payout</Text>
+ <View style={styles.payoutRow}>
+ <View style={styles.payoutStat}>
+ <Text style={styles.payoutStatValue}>124</Text>
+ <Text style={styles.payoutStatLabel}>Total walks</Text>
+ </View>
+ <View style={styles.payoutDivider} />
+ <View style={styles.payoutStat}>
+ <Text style={styles.payoutStatValue}>${(walker.pricePerWalk * 124 * 0.85).toFixed(0)}</Text>
+ <Text style={styles.payoutStatLabel}>Est. payout</Text>
+ </View>
+ <View style={styles.payoutDivider} />
+ <View style={styles.payoutStat}>
+ <Text style={styles.payoutStatValue}>${walker.pricePerWalk * 0.85}</Text>
+ <Text style={styles.payoutStatLabel}>Per walk</Text>
+ </View>
+ </View>
+ <Text style={styles.payoutNote}>Payouts processed weekly via alphinium-payments. 15% platform fee applies.</Text>
  </View>
 
  <View style={styles.section}>
- <Text style={styles.sectionTitle}>Recent reviews ({walker.reviewCount})</Text>
+ <Text style={styles.sectionTitle}>Recent reviews</Text>
  {reviews.map((review) => (
  <View key={review.id} style={styles.reviewCard}>
   <View style={styles.reviewHeader}>
@@ -193,6 +201,36 @@ const styles = StyleSheet.create({
  color: colors.text,
  fontWeight: '700',
  fontSize: 12,
+ },
+ payoutRow: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ justifyContent: 'space-around',
+ },
+ payoutStat: {
+ alignItems: 'center',
+ flex: 1,
+ gap: 4,
+ },
+ payoutStatValue: {
+ fontSize: 22,
+ fontWeight: '900',
+ color: colors.primary,
+ },
+ payoutStatLabel: {
+ color: colors.textMuted,
+ fontWeight: '700',
+ fontSize: 12,
+ },
+ payoutDivider: {
+ width: 1,
+ height: 40,
+ backgroundColor: colors.border,
+ },
+ payoutNote: {
+ color: colors.textMuted,
+ fontSize: 12,
+ lineHeight: 18,
  },
  reviewCard: {
  backgroundColor: '#F8FAFC',
